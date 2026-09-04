@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: framework-backend
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:framework}?createDatabaseIfNotExist=true&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+
+server:
+  port: ${SERVER_PORT:8081}
+  error:
+    include-message: always # mensagens de validação/permissão chegam ao cliente
+
+# Segredo que assina os tokens de sessão (HMAC). Em produção defina
+# AUTH_TOKEN_SECRET — trocar o segredo desloga todo mundo.
+auth:
+  token-secret: ${AUTH_TOKEN_SECRET:framework-dev-secret-troque-em-producao}
+
+# Senha do admin criado no primeiro boot (só quando app_user está vazio)
+bootstrap:
+  admin-password: ${ADMIN_PASSWORD:admin}
+
+logging:
+  level:
+    com.framework: INFO

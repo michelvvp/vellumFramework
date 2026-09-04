@@ -1,0 +1,18 @@
+# build
+backend/target/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# deps
+frontend/node_modules/
+
+# ambiente
+.env
+.env.local
+*.log
+
+# editores / SO
+.DS_Store
+.idea/
+.vscode/
+*.iml

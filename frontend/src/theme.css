@@ -1,0 +1,183 @@
+/* Extras estruturais do shell do framework sobre o design system.
+   Regra do DS: o design-system.css é cópia literal do canônico; tudo que o
+   app precisa além dele mora aqui. O accent NÃO é definido neste arquivo —
+   ele vem do cadastro (app_config) e é injetado em runtime pelo MetaProvider. */
+
+/* ----------------------------------------------------------------------------
+   Layout de página (fora do .window) — tela de login
+   --------------------------------------------------------------------------- */
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-lg) var(--space-3xl);
+}
+
+.page--center {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xl);
+}
+
+.page-title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.page-sub {
+  color: var(--muted);
+  margin: 0;
+  text-align: center;
+}
+
+/* Janela de app ocupando a viewport */
+.app-window {
+  width: min(1180px, calc(100vw - 2 * var(--space-lg)));
+  margin: var(--space-xl) auto;
+  min-height: calc(100dvh - 2 * var(--space-xl));
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.content-header h1 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* Utilitários: linhas quebram por padrão, pilhas respiram */
+.row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stack { display: flex; flex-direction: column; gap: var(--space-lg); }
+
+.sidebar-footer { margin-top: auto; }
+
+/* Rótulo de grupo na sidebar (menu_group do dicionário) */
+.sidebar-heading {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  padding: var(--space-md) var(--space-sm) var(--space-2xs);
+}
+
+/* Breadcrumb do MASTER_DETAIL (stack de navegação pai → filho) */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+  font-size: var(--text-sm);
+}
+
+.breadcrumb .crumb {
+  background: none;
+  border: 0;
+  padding: var(--space-2xs) var(--space-2xs);
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm, 8px);
+}
+
+.breadcrumb .crumb:hover { color: var(--text); }
+.breadcrumb .crumb[aria-current="page"] { color: var(--text); font-weight: 600; cursor: default; }
+.breadcrumb .sep { color: var(--faint); }
+
+/* Cada .card é um stacking context (backdrop-filter); quando um popup abre
+   dentro de um card, o card precisa subir acima dos irmãos seguintes. */
+.card:has(.popup.is-open) { z-index: 45; }
+
+/* Formulário longo pode passar da altura da janela: quem rola é o overlay,
+   não o modal (overflow no modal cortaria o menu dos seletores). */
+.modal-overlay:not(.modal-overlay--sheet) { overflow-y: auto; place-items: start center; }
+.modal-overlay:not(.modal-overlay--sheet) > .modal { margin: auto; }
+
+/* Tabelas densas viram lista agrupada no mobile */
+.mobile-list { display: none; }
+
+/* Quando uma .list-row entra num wrapper (swipe/drag), o hairline entre
+   linhas migra para o wrapper. */
+.list-group > * + * { border-top: 1px solid var(--glass-border); }
+.list-group > * + * > .list-row { border-top: none; }
+
+/* Reordenar por arrasto: pegador ≡ e linha "levantada" seguindo o ponteiro */
+.drag-handle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; color: var(--muted);
+  cursor: grab; touch-action: none;
+  user-select: none; -webkit-user-select: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.is-dragging {
+  position: relative; z-index: 30;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-float);
+  border-radius: var(--radius-md);
+}
+
+/* Menu de contexto da linha da grid (filhos + ações + editar/excluir) */
+.row-menu { position: relative; display: inline-flex; }
+
+/* Grade de widgets do dashboard */
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-lg);
+}
+
+.widget-chart { grid-column: 1 / -1; }
+.widget-chart .chart-box { height: 260px; margin-top: var(--space-sm); }
+
+/* ----------------------------------------------------------------------------
+   Adaptações mobile (≤ 640px)
+   --------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .page {
+    padding: var(--space-lg) var(--space-md) var(--space-2xl);
+  }
+
+  /* .app-window define largura/margem próprias no desktop e venceria a regra
+     mobile do DS para .window — reforça a tela cheia aqui */
+  .app-window {
+    width: 100%;
+    margin: 0;
+    min-height: 100dvh;
+  }
+
+  .content-header h1 { font-size: var(--text-lg); }
+
+  .desktop-only { display: none; }
+  .mobile-list { display: block; }
+
+  /* Pop-up dentro de um .field vira controle de largura cheia (como o .input) */
+  .field > .popup { display: block; }
+  .field > .popup > .popup-trigger { width: 100%; justify-content: space-between; }
+  .field > .popup > .menu[role="listbox"] {
+    left: 0;
+    right: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
