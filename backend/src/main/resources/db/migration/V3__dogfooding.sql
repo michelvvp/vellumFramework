@@ -545,3 +545,15 @@ INSERT INTO `vision_restriction` (nr_seq_vision, ie_restriction_type, cd_functio
 SELECT nr_sequence, 'PERMISSION', 'PERSON_EDIT', op.ie_operation FROM `vision`
  CROSS JOIN (SELECT 'CREATE' AS ie_operation UNION ALL SELECT 'UPDATE' UNION ALL SELECT 'DELETE') op
  WHERE nm_vision = 'people';
+
+-- ===================== hooks do modelo de acesso =============================
+-- Mudou permissão, sobe a versão do estabelecimento e os tokens emitidos antes
+-- morrem na hora. No delete a linha é lida antes de sumir, daí BEFORE_DELETE.
+
+INSERT INTO `handler` (nm_handler, ds_label, ie_handler_type, nr_seq_table, ie_moment, nm_bean) VALUES
+  ('bump_fe_create', 'Versão de permissão', 'HOOK', @t_func_estab,   'AFTER_CREATE',  'permission_version_bump'),
+  ('bump_fe_update', 'Versão de permissão', 'HOOK', @t_func_estab,   'AFTER_UPDATE',  'permission_version_bump'),
+  ('bump_fe_delete', 'Versão de permissão', 'HOOK', @t_func_estab,   'BEFORE_DELETE', 'permission_version_bump'),
+  ('bump_fp_create', 'Versão de permissão', 'HOOK', @t_func_profile, 'AFTER_CREATE',  'permission_version_bump'),
+  ('bump_fp_update', 'Versão de permissão', 'HOOK', @t_func_profile, 'AFTER_UPDATE',  'permission_version_bump'),
+  ('bump_fp_delete', 'Versão de permissão', 'HOOK', @t_func_profile, 'BEFORE_DELETE', 'permission_version_bump');
