@@ -11,10 +11,10 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.framework</groupId>
-    <artifactId>framework-backend</artifactId>
+    <groupId>com.vellum</groupId>
+    <artifactId>vellum-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>framework-backend</name>
+    <name>vellum-backend</name>
     <description>Runtime metadata-driven: dicionário + CRUD genérico + meta</description>
 
     <properties>

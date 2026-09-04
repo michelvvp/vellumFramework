@@ -1,6 +1,6 @@
 import type { Row } from './types'
 
-const AUTH_KEY = 'framework.auth'
+const AUTH_KEY = 'vellum.auth'
 
 export function lerAuth(): { token: string; user: any } | null {
   try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null') } catch { return null }
@@ -23,7 +23,7 @@ async function req(path: string, options: RequestInit = {}): Promise<any> {
   if (res.status === 401 && path !== '/auth/login') {
     // sessão inválida: derruba o login persistido e avisa o app
     gravarAuth(null)
-    window.dispatchEvent(new Event('framework:unauthorized'))
+    window.dispatchEvent(new Event('vellum:unauthorized'))
   }
   if (!res.ok) {
     let corpo: any = null

@@ -3,7 +3,7 @@ import { api, gravarAuth, lerAuth } from './api'
 
 /*
  * Sessão persistente: { token, user } fica no localStorage até o logoff.
- * O api.ts manda o token em todo request e dispara 'framework:unauthorized'
+ * O api.ts manda o token em todo request e dispara 'vellum:unauthorized'
  * num 401, o que derruba a sessão aqui e leva de volta ao login.
  */
 interface AuthState { token: string; user: { id: number; name: string; login: string; roles: string[] } }
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const derrubar = () => setAuth(null)
-    window.addEventListener('framework:unauthorized', derrubar)
-    return () => window.removeEventListener('framework:unauthorized', derrubar)
+    window.addEventListener('vellum:unauthorized', derrubar)
+    return () => window.removeEventListener('vellum:unauthorized', derrubar)
   }, [])
 
   async function login(login: string, senha: string) {

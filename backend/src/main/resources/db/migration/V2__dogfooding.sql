@@ -133,7 +133,7 @@ INSERT INTO `domain_value` (nr_seq_domain, vl_value, ds_label, nr_order) VALUES
 -- ============================ config do app ==================================
 
 INSERT INTO `app_config` (nm_key, vl_value) VALUES
-  ('app.name',          'Framework'),
+  ('app.name',          'Vellum'),
   ('theme.accent',      '#0a84ff'),
   ('theme.accentHover', '#3396ff'),
   ('theme.accentTint',  'rgba(10, 132, 255, 0.18)'),
