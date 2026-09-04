@@ -6,7 +6,7 @@ import {
   formatarData, useArrastarOrdem, useIsMobile, useToast, type PopupOption,
 } from '../ui'
 import FormModal from './FormModal'
-import type { ActionDef, FieldDef, Row, VisionDef, VisionFieldDef } from '../types'
+import type { ActionDef, ColumnDef, Row, VisionDef, VisionColumnDef } from '../types'
 
 /*
  * A listagem genérica — o arquétipo consolidado do gym: tabela no desktop,
@@ -36,22 +36,22 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
   const [opcoesSelecao, setOpcoesSelecao] = useState<{ id: number; nome: string }[]>([])
   const [opcoesFiltro, setOpcoesFiltro] = useState<Record<string, PopupOption[]>>({})
 
-  const colunas = useMemo(() => vision.fields
+  const colunas = useMemo(() => vision.columns
     .filter(f => f.grid)
-    .filter(f => tabela.fields[f.field] && tabela.fields[f.field].type !== 'PASSWORD')
-    .filter(f => !(vision.parentFkField === f.field && parentId !== undefined))
+    .filter(f => tabela.columns[f.column] && tabela.columns[f.column].type !== 'PASSWORD')
+    .filter(f => !(vision.parentFkColumn === f.column && parentId !== undefined))
     .sort((a, b) => (a.orderGrid ?? 999) - (b.orderGrid ?? 999)), [vision, parentId, tabela])
 
-  const camposFiltro = useMemo(() => vision.fields.filter(f => f.filter), [vision])
+  const camposFiltro = useMemo(() => vision.columns.filter(f => f.filter), [vision])
 
   // reordenação por arrasto: habilitada quando algum campo da visão pede DRAG_ORDER
-  const arrastavel = vision.fields.some(f => f.component === 'DRAG_ORDER') && vision.allow.update
+  const arrastavel = vision.columns.some(f => f.component === 'DRAG_ORDER') && vision.allow.update
   // seleção N:N: campo ENTITY com MULTI_SELECT numa visão-filha (tabela de ligação)
   const campoMulti = useMemo(() => {
     if (parentId === undefined) return undefined
-    const vf = vision.fields.find(f => f.component === 'MULTI_SELECT')
+    const vf = vision.columns.find(f => f.component === 'MULTI_SELECT')
     if (!vf) return undefined
-    const def = tabela.fields[vf.field]
+    const def = tabela.columns[vf.column]
     return def?.type === 'ENTITY' && def.refTable ? { vf, def } : undefined
   }, [vision, parentId, tabela])
 
@@ -59,10 +59,10 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
     setErro('')
     try {
       const params: Record<string, any> = {}
-      if (vision.parentFkField && parentId !== undefined) params[vision.parentFkField] = parentId
+      if (vision.parentFkColumn && parentId !== undefined) params[vision.parentFkColumn] = parentId
       for (const [campo, v] of Object.entries(filtros)) {
         if (v === '' || v === null || v === undefined) continue
-        const def = tabela.fields[campo.replace(/__(gte|lte|like)$/, '')]
+        const def = tabela.columns[campo.replace(/__(gte|lte|like)$/, '')]
         if (!def) continue
         params[campo] = v
       }
@@ -79,11 +79,11 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
   // opções dos filtros ENTITY (combos do cabeçalho)
   useEffect(() => {
     for (const vf of camposFiltro) {
-      const def = tabela.fields[vf.field]
+      const def = tabela.columns[vf.column]
       if (def?.type !== 'ENTITY' || !def.refTable) continue
-      data.lookup(def.refTable)
+      data.lookup(def.refTable, vision.key)
         .then(r => setOpcoesFiltro(prev => ({
-          ...prev, [vf.field]: r.map(x => ({ value: String(x.id), label: x.label || `#${x.id}` })),
+          ...prev, [vf.column]: r.map(x => ({ value: String(x.id), label: x.label || `#${x.id}` })),
         })))
         .catch(() => {})
     }
@@ -132,7 +132,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
 
   async function abrirSelecao() {
     try {
-      const opcoes = await data.lookup(campoMulti!.def.refTable!)
+      const opcoes = await data.lookup(campoMulti!.def.refTable!, vision.key)
       setOpcoesSelecao(opcoes.map(o => ({ id: o.id, nome: o.label || `#${o.id}` })))
       setSelecaoAberta(true)
     } catch (e: any) {
@@ -143,12 +143,12 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
   /* N:N por seleção: diff entre os marcados e as linhas atuais da ligação */
   async function salvarSelecao(ids: number[]) {
     const { vf } = campoMulti!
-    const atuais = new Map(rows.map(r => [Number(r[vf.field]), r.nr_sequence]))
+    const atuais = new Map(rows.map(r => [Number(r[vf.column]), r.nr_sequence]))
     try {
       for (const id of ids) {
         if (!atuais.has(id)) {
           await data.create(vision.table!, vision.key, {
-            [vf.field]: id, [vision.parentFkField!]: parentId,
+            [vf.column]: id, [vision.parentFkColumn!]: parentId,
           })
         }
       }
@@ -167,8 +167,8 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
     || vision.actions.some(a => a.placement === 'ROW')
     || vision.allow.update || vision.allow.delete
 
-  function celula(vf: VisionFieldDef, row: Row) {
-    const def = tabela.fields[vf.field]
+  function celula(vf: VisionColumnDef, row: Row) {
+    const def = tabela.columns[vf.column]
     return formatarCelula(def, vf, row, meta.domains)
   }
 
@@ -226,38 +226,38 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
     )
   }
 
-  function controleFiltro(vf: VisionFieldDef) {
-    const def = tabela.fields[vf.field]
+  function controleFiltro(vf: VisionColumnDef) {
+    const def = tabela.columns[vf.column]
     const rotulo = vf.label || def.label
     if (def.type === 'DATE' || def.type === 'DATETIME') {
       return (
-        <span className="row" style={{ gap: 'var(--space-xs)' }} key={vf.field}>
-          <DatePicker value={filtros[`${vf.field}__gte`] ?? ''} placeholder={`${rotulo} de`}
-            ariaLabel={`${rotulo} a partir de`} onChange={v => setFiltros(f => ({ ...f, [`${vf.field}__gte`]: v }))} />
-          <DatePicker value={filtros[`${vf.field}__lte`] ?? ''} placeholder={`${rotulo} até`}
-            ariaLabel={`${rotulo} até`} onChange={v => setFiltros(f => ({ ...f, [`${vf.field}__lte`]: v }))} />
+        <span className="row" style={{ gap: 'var(--space-xs)' }} key={vf.column}>
+          <DatePicker value={filtros[`${vf.column}__gte`] ?? ''} placeholder={`${rotulo} de`}
+            ariaLabel={`${rotulo} a partir de`} onChange={v => setFiltros(f => ({ ...f, [`${vf.column}__gte`]: v }))} />
+          <DatePicker value={filtros[`${vf.column}__lte`] ?? ''} placeholder={`${rotulo} até`}
+            ariaLabel={`${rotulo} até`} onChange={v => setFiltros(f => ({ ...f, [`${vf.column}__lte`]: v }))} />
         </span>
       )
     }
     if (def.type === 'DOMAIN') {
       const opcoes = (meta.domains[def.domain ?? ''] ?? []).map(v => ({ value: v.value, label: v.label }))
-      return <Popup key={vf.field} value={filtros[vf.field] ?? ''} ariaLabel={`Filtrar por ${rotulo}`}
+      return <Popup key={vf.column} value={filtros[vf.column] ?? ''} ariaLabel={`Filtrar por ${rotulo}`}
         options={[{ value: '', label: `${rotulo}: todos` }, ...opcoes]}
-        onChange={v => setFiltros(f => ({ ...f, [vf.field]: v }))} />
+        onChange={v => setFiltros(f => ({ ...f, [vf.column]: v }))} />
     }
     if (def.type === 'ENTITY') {
-      return <Popup key={vf.field} value={filtros[vf.field] ?? ''} ariaLabel={`Filtrar por ${rotulo}`}
-        options={[{ value: '', label: `${rotulo}: todos` }, ...(opcoesFiltro[vf.field] ?? [])]}
-        onChange={v => setFiltros(f => ({ ...f, [vf.field]: v }))} />
+      return <Popup key={vf.column} value={filtros[vf.column] ?? ''} ariaLabel={`Filtrar por ${rotulo}`}
+        options={[{ value: '', label: `${rotulo}: todos` }, ...(opcoesFiltro[vf.column] ?? [])]}
+        onChange={v => setFiltros(f => ({ ...f, [vf.column]: v }))} />
     }
     if (def.type === 'BOOLEAN') {
-      return <Popup key={vf.field} value={filtros[vf.field] ?? ''} ariaLabel={`Filtrar por ${rotulo}`}
+      return <Popup key={vf.column} value={filtros[vf.column] ?? ''} ariaLabel={`Filtrar por ${rotulo}`}
         options={[{ value: '', label: `${rotulo}: todos` }, { value: 'true', label: 'Sim' }, { value: 'false', label: 'Não' }]}
-        onChange={v => setFiltros(f => ({ ...f, [vf.field]: v }))} />
+        onChange={v => setFiltros(f => ({ ...f, [vf.column]: v }))} />
     }
-    return <input key={vf.field} className="input input--sm" type="search" placeholder={rotulo}
-      aria-label={`Filtrar por ${rotulo}`} value={filtros[`${vf.field}__like`] ?? ''}
-      onChange={e => setFiltros(f => ({ ...f, [`${vf.field}__like`]: e.target.value }))}
+    return <input key={vf.column} className="input input--sm" type="search" placeholder={rotulo}
+      aria-label={`Filtrar por ${rotulo}`} value={filtros[`${vf.column}__like`] ?? ''}
+      onChange={e => setFiltros(f => ({ ...f, [`${vf.column}__like`]: e.target.value }))}
       style={{ width: 160 }} />
   }
 
@@ -275,10 +275,10 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
             {arrastavel && <DragHandle onPointerDown={e => drag.iniciar(e, i, rows.length)} />}
             <span className="list-label">
               {rotuloLinha(row)}
-              <span className="list-sub">{subtituloLinha(colunas, tabela.fields, row, meta.domains)}</span>
+              <span className="list-sub">{subtituloLinha(colunas, tabela.columns, row, meta.domains)}</span>
             </span>
             <span className="list-trailing">
-              {badgeLinha(colunas, tabela.fields, row, meta.domains)}
+              {badgeLinha(colunas, tabela.columns, row, meta.domains)}
               {temMenuLinha && menuLinha(row)}
             </span>
           </div>
@@ -336,9 +336,9 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
                 <thead>
                   <tr>
                     {colunas.map(c => {
-                      const def = tabela.fields[c.field]
+                      const def = tabela.columns[c.column]
                       const numerica = def.type === 'INTEGER' || def.type === 'DECIMAL'
-                      return <th key={c.field} className={numerica ? 'numeric' : undefined}>{c.label}</th>
+                      return <th key={c.column} className={numerica ? 'numeric' : undefined}>{c.label}</th>
                     })}
                     {temMenuLinha && <th style={{ width: 48 }}></th>}
                   </tr>
@@ -347,9 +347,9 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
                   {rows.map(row => (
                     <tr key={row.nr_sequence}>
                       {colunas.map(c => {
-                        const def = tabela.fields[c.field]
+                        const def = tabela.columns[c.column]
                         const numerica = def.type === 'INTEGER' || def.type === 'DECIMAL'
-                        return <td key={c.field} className={numerica ? 'numeric' : undefined}>{celula(c, row)}</td>
+                        return <td key={c.column} className={numerica ? 'numeric' : undefined}>{celula(c, row)}</td>
                       })}
                       {temMenuLinha && <td style={{ textAlign: 'right' }}>{menuLinha(row)}</td>}
                     </tr>
@@ -383,7 +383,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
       {campoMulti && (
         <SelecaoModal aberto={selecaoAberta} titulo={vision.title}
           itens={opcoesSelecao}
-          selecionados={rows.map(r => Number(r[campoMulti.vf.field])).filter(Boolean)}
+          selecionados={rows.map(r => Number(r[campoMulti.vf.column])).filter(Boolean)}
           onSalvar={salvarSelecao} onFechar={() => setSelecaoAberta(false)} />
       )}
     </>
@@ -392,9 +392,9 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
 
 /* ---------- formatação de células ---------- */
 
-function formatarCelula(def: FieldDef, vf: VisionFieldDef, row: Row,
+function formatarCelula(def: ColumnDef, vf: VisionColumnDef, row: Row,
                         domains: Record<string, { value: string; label: string; color?: string | null }[]>) {
-  const v = row[vf.field]
+  const v = row[vf.column]
   if (v === null || v === undefined || v === '') return <span className="text-muted">—</span>
   switch (def.type) {
     case 'BOOLEAN':
@@ -405,7 +405,7 @@ function formatarCelula(def: FieldDef, vf: VisionFieldDef, row: Row,
       return <span className={`badge${cor}`}>{item?.label ?? String(v)}</span>
     }
     case 'ENTITY':
-      return row[`${vf.field}__label`] ?? `#${v}`
+      return row[`${vf.column}__label`] ?? `#${v}`
     case 'DATE':
       return formatarData(String(v).slice(0, 10))
     case 'DATETIME': {
@@ -418,15 +418,15 @@ function formatarCelula(def: FieldDef, vf: VisionFieldDef, row: Row,
 }
 
 /* No mobile o registro vira uma linha: rótulo + detalhes no .list-sub + badge à direita */
-function subtituloLinha(colunas: VisionFieldDef[], fields: Record<string, FieldDef>, row: Row,
+function subtituloLinha(colunas: VisionColumnDef[], fields: Record<string, ColumnDef>, row: Row,
                         domains: Record<string, any>) {
   return colunas
-    .filter(c => fields[c.field].type !== 'DOMAIN')
+    .filter(c => fields[c.column].type !== 'DOMAIN')
     .map(c => {
-      const v = row[c.field]
+      const v = row[c.column]
       if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null
-      if (fields[c.field].type === 'ENTITY') return row[`${c.field}__label`] ?? null
-      if (fields[c.field].type === 'DATE') return formatarData(String(v).slice(0, 10))
+      if (fields[c.column].type === 'ENTITY') return row[`${c.column}__label`] ?? null
+      if (fields[c.column].type === 'DATE') return formatarData(String(v).slice(0, 10))
       return String(v)
     })
     .filter(Boolean)
@@ -434,11 +434,11 @@ function subtituloLinha(colunas: VisionFieldDef[], fields: Record<string, FieldD
     .join(' · ')
 }
 
-function badgeLinha(colunas: VisionFieldDef[], fields: Record<string, FieldDef>, row: Row,
+function badgeLinha(colunas: VisionColumnDef[], fields: Record<string, ColumnDef>, row: Row,
                     domains: Record<string, { value: string; label: string; color?: string | null }[]>) {
-  const c = colunas.find(c => fields[c.field].type === 'DOMAIN' && row[c.field])
+  const c = colunas.find(c => fields[c.column].type === 'DOMAIN' && row[c.column])
   if (!c) return null
-  const def = fields[c.field]
-  const item = (domains[def.domain ?? ''] ?? []).find(d => d.value === String(row[c.field]))
-  return <span className={`badge${item?.color ? ` badge--${item.color}` : ''}`}>{item?.label ?? row[c.field]}</span>
+  const def = fields[c.column]
+  const item = (domains[def.domain ?? ''] ?? []).find(d => d.value === String(row[c.column]))
+  return <span className={`badge${item?.color ? ` badge--${item.color}` : ''}`}>{item?.label ?? row[c.column]}</span>
 }

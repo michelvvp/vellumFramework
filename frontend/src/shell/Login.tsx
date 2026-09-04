@@ -1,21 +1,64 @@
 import { useState } from 'react'
 import { useAuth } from '../auth'
+import type { EstablishmentDef } from '../types'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, escolherEstabelecimento } = useAuth()
   const [form, setForm] = useState({ login: '', senha: '' })
   const [erro, setErro] = useState('')
   const [entrando, setEntrando] = useState(false)
+  // preenchido quando a pessoa tem vínculo com mais de um estabelecimento
+  const [estabelecimentos, setEstabelecimentos] = useState<EstablishmentDef[]>([])
 
   async function entrar(e: React.FormEvent) {
     e.preventDefault()
     setErro(''); setEntrando(true)
     try {
-      await login(form.login.trim(), form.senha)
+      const escolhas = await login(form.login.trim(), form.senha)
+      if (escolhas.length > 0) {
+        setEstabelecimentos(escolhas)
+        setEntrando(false)
+      }
     } catch (err: any) {
       setErro(err.message)
       setEntrando(false)
     }
+  }
+
+  async function escolher(id: number) {
+    setErro(''); setEntrando(true)
+    try {
+      await escolherEstabelecimento(id)
+    } catch (err: any) {
+      setErro(err.message)
+      setEntrando(false)
+    }
+  }
+
+  if (estabelecimentos.length > 0) {
+    return (
+      <div className="page page--center">
+        <h1 className="page-title">Onde você vai entrar</h1>
+        <div className="card" style={{ width: 'min(400px, 100%)' }}>
+          {erro && (
+            <div className="alert alert--danger" style={{ marginBottom: 'var(--space-md)' }}>
+              <div><span className="alert-title">Não foi possível entrar</span><p>{erro}</p></div>
+            </div>
+          )}
+          <div className="list-group">
+            {estabelecimentos.map(e => (
+              <button key={e.id} className="list-item" type="button" disabled={entrando}
+                onClick={() => escolher(e.id)}>
+                <span className="avatar" style={e.color ? { background: e.color } : undefined}>
+                  {e.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="list-item-title">{e.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -7,8 +7,10 @@ import java.util.List;
 /**
  * Leitura das restrições PERMISSION de uma visão. Regra: sem nenhuma linha
  * PERMISSION para a operação, a visão é liberada para qualquer autenticado;
- * havendo linhas, basta um papel do usuário bater (OU entre elas). Isto roda
- * sempre no backend — o JSON do front é cortesia de UX, nunca autoridade.
+ * havendo linhas, basta uma função do usuário bater (OU entre elas). As
+ * funções já vêm resolvidas no estabelecimento ativo — perfis de outro
+ * estabelecimento não entram na conta. Isto roda sempre no backend: o JSON do
+ * front é cortesia de UX, nunca autoridade.
  */
 public final class Permissions {
 
@@ -26,7 +28,7 @@ public final class Permissions {
         List<MetaModel.Restriction> especificas = regras.stream()
                 .filter(r -> operation.equals(r.operation())).toList();
         List<MetaModel.Restriction> aplicaveis = especificas.isEmpty() ? regras : especificas;
-        return aplicaveis.stream().anyMatch(r -> user.hasRole(r.role()));
+        return aplicaveis.stream().anyMatch(r -> user.can(r.function()));
     }
 
     public static boolean podeLer(MetaModel.Vision vision, CurrentUser user) {

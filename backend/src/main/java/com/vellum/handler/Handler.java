@@ -1,4 +1,4 @@
-package com.vellum.function;
+package com.vellum.handler;
 
 /**
  * Ponto de extensão em Java (seção 3.8 da especificação): o metadado diz
@@ -9,7 +9,7 @@ package com.vellum.function;
  * - HOOK: pode mutar ctx.payload() (before) ou reagir (after); lançar exceção aborta.
  * - AUTH: lance ResponseStatusException(403) para negar; retorno é ignorado.
  */
-public interface FunctionHandler {
+public interface Handler {
 
-    Object execute(FunctionContext ctx);
+    Object execute(HandlerContext ctx);
 }

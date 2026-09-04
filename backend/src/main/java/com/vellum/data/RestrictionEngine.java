@@ -13,15 +13,19 @@ import java.util.List;
  * Traduz as restrições FILTER de uma visão em fragmentos de WHERE com
  * parâmetros posicionais. As variáveis de contexto são resolvidas aqui,
  * no backend — nunca confiadas ao front (seção 3.7 da especificação):
- *   :usuario_id     — id do app_user logado
- *   :usuario_record — id do registro de negócio vinculado ao usuário
- *                     (app_user.nr_seq_record, ex.: a pessoa do gym)
- *   :usuario_papeis — papéis do usuário (para operador IN)
- *   :hoje / :agora  — data/data-hora do servidor
- *   :parent_id      — id do registro pai (MASTER_DETAIL)
+ *   :person_id        — id da person logada
+ *   :person_record    — id do registro de negócio vinculado a ela
+ *                       (person.nr_seq_record)
+ *   :person_functions — funções efetivas no estabelecimento (para operador IN)
+ *   :establishment_id — estabelecimento ativo da sessão
+ *   :hoje / :agora    — data/data-hora do servidor
+ *   :parent_id        — id do registro pai (MASTER_DETAIL)
  */
 @Component
 public class RestrictionEngine {
+
+    private static final java.util.regex.Pattern IDENT =
+            java.util.regex.Pattern.compile("^[A-Za-z_][A-Za-z0-9_]{0,63}$");
 
     public record Where(String sql, List<Object> params) {}
 
@@ -31,7 +35,7 @@ public class RestrictionEngine {
 
         for (MetaModel.Restriction r : vision.restrictions()) {
             if (!"FILTER".equals(r.type())) continue;
-            String coluna = "t.`" + r.field() + "`";
+            String coluna = "t.`" + ident(r.column()) + "`";
             String operador = r.operator() == null ? "EQ" : r.operator();
             switch (operador) {
                 case "IS_NULL" -> clausulas.add(coluna + " IS NULL");
@@ -77,12 +81,23 @@ public class RestrictionEngine {
         return new Where(String.join(" AND ", clausulas), params);
     }
 
+    /**
+     * O MetadataLoader já recusa filtro em coluna que não existe na tabela;
+     * esta é a segunda tranca, porque o valor entra no SQL sem parâmetro.
+     */
+    private static String ident(String nome) {
+        if (nome == null || !IDENT.matcher(nome).matches())
+            throw new IllegalArgumentException("coluna inválida em restrição: " + nome);
+        return nome;
+    }
+
     private Object resolver(String valor, CurrentUser user, Long parentId) {
         if (valor == null) return null;
         return switch (valor) {
-            case ":usuario_id" -> user.id();
-            case ":usuario_record" -> user.linkedRecord();
-            case ":usuario_papeis" -> new ArrayList<>(user.roles());
+            case ":person_id" -> user.id();
+            case ":person_record" -> user.linkedRecord();
+            case ":person_functions" -> new ArrayList<>(user.functions());
+            case ":establishment_id" -> user.establishmentId();
             case ":hoje" -> LocalDate.now();
             case ":agora" -> LocalDateTime.now();
             case ":parent_id" -> parentId;

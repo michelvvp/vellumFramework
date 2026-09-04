@@ -52,29 +52,29 @@ public class MetadataLoader {
         // ---------- tabelas e campos ----------
         Map<Long, String> tableNameById = new HashMap<>();
         for (Map<String, Object> t : jdbc.queryForList(
-                "SELECT nr_sequence, nm_table FROM `tables` WHERE ie_active")) {
+                "SELECT nr_sequence, nm_table FROM `table` WHERE ie_active")) {
             tableNameById.put(((Number) t.get("nr_sequence")).longValue(), (String) t.get("nm_table"));
         }
 
         Map<String, MetaModel.Table> tables = new LinkedHashMap<>();
         for (Map<String, Object> t : jdbc.queryForList(
-                "SELECT * FROM `tables` WHERE ie_active ORDER BY nm_table")) {
+                "SELECT * FROM `table` WHERE ie_active ORDER BY nm_table")) {
             long id = ((Number) t.get("nr_sequence")).longValue();
             String nome = (String) t.get("nm_table");
-            Map<String, MetaModel.Field> fields = new LinkedHashMap<>();
+            Map<String, MetaModel.Column> columns = new LinkedHashMap<>();
             for (Map<String, Object> f : jdbc.queryForList(
-                    "SELECT * FROM `table_field` WHERE nr_seq_table = ? AND ie_active " +
+                    "SELECT * FROM `column` WHERE nr_seq_table = ? AND ie_active " +
                     "ORDER BY nr_order, nr_sequence", id)) {
                 String tipo = (String) f.get("ie_type");
                 Long domId = numero(f.get("nr_seq_domain"));
                 Long refId = numero(f.get("nr_seq_table_ref"));
-                String nmField = (String) f.get("nm_field");
+                String nmColumn = (String) f.get("nm_column");
                 if ("DOMAIN".equals(tipo) && (domId == null || !domainNameById.containsKey(domId)))
-                    erros.add(nome + "." + nmField + ": tipo DOMAIN sem domínio válido");
+                    erros.add(nome + "." + nmColumn + ": tipo DOMAIN sem domínio válido");
                 if ("ENTITY".equals(tipo) && (refId == null || !tableNameById.containsKey(refId)))
-                    erros.add(nome + "." + nmField + ": tipo ENTITY sem tabela referenciada válida");
-                fields.put(nmField, new MetaModel.Field(
-                        ((Number) f.get("nr_sequence")).longValue(), nmField,
+                    erros.add(nome + "." + nmColumn + ": tipo ENTITY sem tabela referenciada válida");
+                columns.put(nmColumn, new MetaModel.Column(
+                        ((Number) f.get("nr_sequence")).longValue(), nmColumn,
                         (String) f.get("ds_label"), tipo,
                         domId == null ? null : domainNameById.get(domId),
                         refId == null ? null : tableNameById.get(refId),
@@ -90,13 +90,14 @@ public class MetadataLoader {
             if (labelCsv != null) for (String lf : labelCsv.split(",")) {
                 String limpo = lf.trim();
                 if (limpo.isEmpty()) continue;
-                if (!fields.containsKey(limpo))
+                if (!columns.containsKey(limpo))
                     erros.add(nome + ": nm_label_field aponta para campo inexistente '" + limpo + "'");
                 labelFields.add(limpo);
             }
             tables.put(nome, new MetaModel.Table(id, nome,
                     (String) t.get("ds_table"), (String) t.get("ds_table_plural"),
-                    labelFields, bool(t.get("ie_audit")), bool(t.get("ie_logical_delete")), fields));
+                    labelFields, bool(t.get("ie_audit")), bool(t.get("ie_logical_delete")),
+                    bool(t.get("ie_system")), columns));
         }
 
         // ---------- grupos de menu ----------
@@ -116,19 +117,19 @@ public class MetadataLoader {
             visionKeyById.put(((Number) v.get("nr_sequence")).longValue(), (String) v.get("nm_vision"));
         }
 
-        List<MetaModel.Function> functions = new ArrayList<>();
-        for (Map<String, Object> f : jdbc.queryForList("SELECT * FROM `function` WHERE ie_active")) {
+        List<MetaModel.Handler> handlers = new ArrayList<>();
+        for (Map<String, Object> f : jdbc.queryForList("SELECT * FROM `handler` WHERE ie_active")) {
             Long visId = numero(f.get("nr_seq_vision"));
             Long tabId = numero(f.get("nr_seq_table"));
-            functions.add(new MetaModel.Function(
+            handlers.add(new MetaModel.Handler(
                     ((Number) f.get("nr_sequence")).longValue(),
-                    (String) f.get("nm_function"), (String) f.get("ds_label"),
-                    (String) f.get("ie_function_type"),
+                    (String) f.get("nm_handler"), (String) f.get("ds_label"),
+                    (String) f.get("ie_handler_type"),
                     visId == null ? null : visionKeyById.get(visId),
                     tabId == null ? null : tableNameById.get(tabId),
                     (String) f.get("ie_moment"), (String) f.get("ie_placement"),
-                    (String) f.get("nm_handler"), bool(f.get("ie_confirm")),
-                    (String) f.get("ds_success_msg"), (String) f.get("nm_role")));
+                    (String) f.get("nm_bean"), bool(f.get("ie_confirm")),
+                    (String) f.get("ds_success_msg"), (String) f.get("cd_function")));
         }
 
         // ---------- visões ----------
@@ -152,47 +153,58 @@ public class MetadataLoader {
 
             // campos da visão; sem nenhum cadastrado, todos os campos da tabela
             // entram com defaults (mitigação da "armadilha do meta-framework")
-            List<MetaModel.VisionField> vFields = new ArrayList<>();
-            List<Map<String, Object>> vfRows = jdbc.queryForList(
-                    "SELECT vf.*, tf.nm_field FROM `vision_field` vf " +
-                    "JOIN `table_field` tf ON tf.nr_sequence = vf.nr_seq_table_field " +
-                    "WHERE vf.nr_seq_vision = ? AND vf.ie_active " +
-                    "ORDER BY COALESCE(vf.nr_order_grid, vf.nr_order_form, tf.nr_order), vf.nr_sequence", id);
-            if (vfRows.isEmpty() && tabela != null) {
-                for (MetaModel.Field f : tabela.fields().values()) {
-                    vFields.add(new MetaModel.VisionField(f.name(), null, null,
-                            true, !f.computed(), f.computed(), false, null, null, null, null, null));
+            List<MetaModel.VisionColumn> vColumns = new ArrayList<>();
+            List<Map<String, Object>> vcRows = jdbc.queryForList(
+                    "SELECT vc.*, c.nm_column FROM `vision_column` vc " +
+                    "JOIN `column` c ON c.nr_sequence = vc.nr_seq_column " +
+                    "WHERE vc.nr_seq_vision = ? AND vc.ie_active " +
+                    "ORDER BY COALESCE(vc.nr_order_grid, vc.nr_order_form, c.nr_order), vc.nr_sequence", id);
+            if (vcRows.isEmpty() && tabela != null) {
+                for (MetaModel.Column c : tabela.columns().values()) {
+                    vColumns.add(new MetaModel.VisionColumn(c.name(), null, null,
+                            true, !c.computed(), c.computed(), false, null, null, null, null, null));
                 }
             } else {
-                for (Map<String, Object> vf : vfRows) {
-                    String nmField = (String) vf.get("nm_field");
-                    if (tabela != null && !tabela.fields().containsKey(nmField))
-                        erros.add("visão " + key + ": campo '" + nmField + "' não pertence à tabela " + tableName);
-                    vFields.add(new MetaModel.VisionField(nmField,
-                            (String) vf.get("ds_label"), (String) vf.get("ie_component"),
-                            bool(vf.get("ie_show_in_grid")), bool(vf.get("ie_show_in_form")),
-                            bool(vf.get("ie_read_only")), bool(vf.get("ie_filter")),
-                            inteiro(vf.get("nr_order_grid")), inteiro(vf.get("nr_order_form")),
-                            inteiro(vf.get("qt_width")), (String) vf.get("ds_format"),
-                            (String) vf.get("nm_ref_filter_field")));
+                for (Map<String, Object> vc : vcRows) {
+                    String nmColumn = (String) vc.get("nm_column");
+                    if (tabela != null && !tabela.columns().containsKey(nmColumn))
+                        erros.add("visão " + key + ": coluna '" + nmColumn + "' não pertence à tabela " + tableName);
+                    vColumns.add(new MetaModel.VisionColumn(nmColumn,
+                            (String) vc.get("ds_label"), (String) vc.get("ie_component"),
+                            bool(vc.get("ie_show_in_grid")), bool(vc.get("ie_show_in_form")),
+                            bool(vc.get("ie_read_only")), bool(vc.get("ie_filter")),
+                            inteiro(vc.get("nr_order_grid")), inteiro(vc.get("nr_order_form")),
+                            inteiro(vc.get("qt_width")), (String) vc.get("ds_format"),
+                            (String) vc.get("nm_ref_filter_column")));
                 }
             }
 
             List<MetaModel.Restriction> restrictions = jdbc.query(
                     "SELECT * FROM `vision_restriction` WHERE nr_seq_vision = ? AND ie_active",
                     (rs, i) -> new MetaModel.Restriction(
-                            rs.getString("ie_restriction_type"), rs.getString("nm_field"),
+                            rs.getString("ie_restriction_type"), rs.getString("nm_column"),
                             rs.getString("ie_operator"), rs.getString("vl_value"),
-                            rs.getString("nm_role"), rs.getString("ie_operation"),
+                            rs.getString("cd_function"), rs.getString("ie_operation"),
                             rs.getString("ds_message"), rs.getString("ds_expression")),
                     id);
+
+            // a coluna alvo de um FILTER entra no WHERE do CRUD genérico: só pode
+            // ser uma coluna real da tabela da visão, conferida aqui e não no SQL
+            for (MetaModel.Restriction r : restrictions) {
+                if (!"FILTER".equals(r.type())) continue;
+                if (r.column() == null || r.column().isBlank())
+                    erros.add("visão " + key + ": filtro sem coluna alvo");
+                else if (tabela == null || !tabela.columns().containsKey(r.column()))
+                    erros.add("visão " + key + ": filtro na coluna '" + r.column()
+                            + "', que não pertence à tabela " + tableName);
+            }
 
             List<String> children = jdbc.queryForList(
                     "SELECT nm_vision FROM `vision` WHERE nr_seq_vision_parent = ? AND ie_active " +
                     "ORDER BY nr_order IS NULL, nr_order, nr_sequence", String.class, id);
 
-            List<MetaModel.Function> actions = functions.stream()
-                    .filter(fn -> "ACTION".equals(fn.type()) && key.equals(fn.visionKey()))
+            List<MetaModel.Handler> actions = handlers.stream()
+                    .filter(h -> "ACTION".equals(h.type()) && key.equals(h.visionKey()))
                     .toList();
 
             List<MetaModel.Widget> widgets = jdbc.query(
@@ -201,13 +213,13 @@ public class MetadataLoader {
                     (rs, i) -> {
                         long wt = rs.getLong("nr_seq_table");
                         List<String> ys = new ArrayList<>();
-                        String csv = rs.getString("nm_fields_y");
+                        String csv = rs.getString("nm_columns_y");
                         if (csv != null) for (String y : csv.split(",")) if (!y.isBlank()) ys.add(y.trim());
                         Integer limite = rs.getObject("qt_limit") == null ? null : rs.getInt("qt_limit");
                         return new MetaModel.Widget(rs.getLong("nr_sequence"), rs.getString("ds_title"),
                                 rs.getString("ie_widget_type"), tableNameById.get(wt),
-                                rs.getString("nm_field_x"), ys, rs.getString("ie_aggregation"),
-                                rs.getString("ie_group_by"), rs.getString("nm_group_field"),
+                                rs.getString("nm_column_x"), ys, rs.getString("ie_aggregation"),
+                                rs.getString("ie_group_by"), rs.getString("nm_group_column"),
                                 rs.getBoolean("ie_use_period"), limite, rs.getInt("nr_order"));
                     }, id);
 
@@ -216,14 +228,14 @@ public class MetadataLoader {
             visions.put(key, new MetaModel.Vision(id, key, (String) v.get("ds_title"),
                     tableName, tipo,
                     parentId == null ? null : visionKeyById.get(parentId),
-                    (String) v.get("nm_parent_fk_field"),
+                    (String) v.get("nm_parent_fk_column"),
                     bool(v.get("ie_read_only")), bool(v.get("ie_allow_create")),
                     bool(v.get("ie_allow_update")), bool(v.get("ie_allow_delete")),
                     (String) v.get("nm_component"), (String) v.get("nm_icon"),
                     (String) v.get("ds_icon_color"),
                     groupId == null ? null : menuGroupById.get(groupId),
                     inteiro(v.get("nr_order")),
-                    vFields, restrictions, children, actions, widgets));
+                    vColumns, restrictions, children, actions, widgets));
         }
 
         // ciclo de visões (pai→filho) derruba o boot
@@ -247,8 +259,8 @@ public class MetadataLoader {
             throw new IllegalStateException("Dicionário inconsistente:\n - " + String.join("\n - ", erros));
         }
 
-        return new MetaModel(domains, tables, visions, functions, menuGroups, config,
-                hash(domains, tables, visions, functions, menuGroups, config));
+        return new MetaModel(domains, tables, visions, handlers, menuGroups, config,
+                hash(domains, tables, visions, handlers, menuGroups, config));
     }
 
     /** Hash do conteúdo do dicionário — o front cacheia o /api/meta por ele. */

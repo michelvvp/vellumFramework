@@ -76,7 +76,7 @@ public class MetaService implements ApplicationRunner {
         Map<String, Object> tables = new LinkedHashMap<>();
         m.tables.forEach((nome, t) -> {
             Map<String, Object> fields = new LinkedHashMap<>();
-            t.fields().forEach((fn, f) -> fields.put(fn, mapa(
+            t.columns().forEach((fn, f) -> fields.put(fn, mapa(
                     "type", f.type(), "label", f.label(),
                     "domain", f.domain(), "refTable", f.refTable(),
                     "required", f.required(), "unique", f.unique(),
@@ -86,7 +86,7 @@ public class MetaService implements ApplicationRunner {
                     "computed", f.computed() ? true : null)));
             tables.put(nome, mapa(
                     "label", t.label(), "labelPlural", t.labelPlural(),
-                    "labelFields", t.labelFields(), "fields", fields));
+                    "labelFields", t.labelFields(), "columns", fields));
         });
         raiz.put("tables", tables);
 
@@ -100,28 +100,30 @@ public class MetaService implements ApplicationRunner {
         raiz.put("menuGroups", m.menuGroups.stream()
                 .map(g -> mapa("label", g.label(), "order", g.order())).toList());
         raiz.put("user", mapa("id", user.id(), "name", user.name(),
-                "login", user.login(), "roles", user.roles()));
+                "login", user.login(), "functions", user.functions(),
+                "establishmentId", user.establishmentId(),
+                "establishmentName", user.establishmentName()));
         return raiz;
     }
 
     private Map<String, Object> visaoJson(MetaModel m, MetaModel.Vision v, CurrentUser user) {
-        List<Map<String, Object>> fields = v.fields().stream().map(f -> {
-            MetaModel.Field def = v.table() == null ? null
-                    : m.tables.get(v.table()).fields().get(f.field());
+        List<Map<String, Object>> fields = v.columns().stream().map(f -> {
+            MetaModel.Column def = v.table() == null ? null
+                    : m.tables.get(v.table()).columns().get(f.column());
             return mapa(
-                    "field", f.field(),
-                    "label", f.label() != null ? f.label() : (def != null ? def.label() : f.field()),
+                    "column", f.column(),
+                    "label", f.label() != null ? f.label() : (def != null ? def.label() : f.column()),
                     "component", f.component(),
                     "grid", f.showInGrid(), "form", f.showInForm(),
                     "readOnly", f.readOnly() || (def != null && def.computed()),
                     "filter", f.filter(),
                     "orderGrid", f.orderGrid(), "orderForm", f.orderForm(),
                     "width", f.width(), "format", f.format(),
-                    "refFilterField", f.refFilterField());
+                    "refFilterColumn", f.refFilterColumn());
         }).toList();
 
         List<Map<String, Object>> actions = v.actions().stream()
-                .filter(a -> a.role() == null || user.hasRole(a.role()))
+                .filter(a -> a.function() == null || user.can(a.function()))
                 .map(a -> mapa("name", a.name(), "label", a.label(),
                         "placement", a.placement(), "confirm", a.confirm(),
                         "successMsg", a.successMsg()))
@@ -143,14 +145,14 @@ public class MetaService implements ApplicationRunner {
         // são aplicados no backend e não precisam ser expostos
         List<Map<String, Object>> validations = v.restrictions().stream()
                 .filter(r -> "VALIDATION".equals(r.type()))
-                .map(r -> mapa("field", r.field(), "expression", r.expression(),
+                .map(r -> mapa("column", r.column(), "expression", r.expression(),
                         "message", r.message()))
                 .toList();
 
         return mapa(
                 "key", v.key(), "title", v.title(), "table", v.table(),
                 "type", v.type(),
-                "parent", v.parentKey(), "parentFkField", v.parentFkField(),
+                "parent", v.parentKey(), "parentFkColumn", v.parentFkColumn(),
                 "component", v.component(),
                 "icon", v.icon(), "iconColor", v.iconColor(),
                 "menuGroup", v.menuGroup(), "order", v.menuOrder(),
@@ -159,7 +161,7 @@ public class MetaService implements ApplicationRunner {
                         "create", !v.readOnly() && v.allowCreate() && Permissions.pode(v, user, "CREATE"),
                         "update", !v.readOnly() && v.allowUpdate() && Permissions.pode(v, user, "UPDATE"),
                         "delete", !v.readOnly() && v.allowDelete() && Permissions.pode(v, user, "DELETE")),
-                "fields", fields, "children", children, "actions", actions,
+                "columns", fields, "children", children, "actions", actions,
                 "widgets", widgets, "validations", validations);
     }
 

@@ -21,6 +21,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     public static final String ATTR_USER = "auth.user";
 
+    /** Únicas rotas que um token sem estabelecimento escolhido alcança. */
+    private static final java.util.Set<String> PERMITIDO_SEM_ESTABELECIMENTO = java.util.Set.of(
+            "/api/auth/establishment", "/api/auth/establishments", "/api/auth/me");
+
     private final AuthService auth;
 
     public AuthTokenFilter(AuthService auth) {
@@ -46,6 +50,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             response.getWriter().write("{\"message\":\"não autenticado\"}");
             return;
         }
+        // token de escolha de estabelecimento só serve para escolher
+        if (user.get().pendingEstablishment() && !PERMITIDO_SEM_ESTABELECIMENTO.contains(request.getRequestURI())) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"message\":\"escolha um estabelecimento para continuar\"}");
+            return;
+        }
         request.setAttribute(ATTR_USER, user.get());
         chain.doFilter(request, response);
     }
@@ -56,11 +67,11 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         return (CurrentUser) request.getAttribute(ATTR_USER);
     }
 
-    /** 403 se o usuário logado não tiver o papel ADMIN. */
-    public static CurrentUser exigirAdmin(HttpServletRequest request) {
+    /** 403 se a pessoa logada não tiver a função exigida no estabelecimento ativo. */
+    public static CurrentUser exigirFuncao(HttpServletRequest request, String cdFunction) {
         CurrentUser u = usuarioAtual(request);
-        if (!u.hasRole("ADMIN"))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "requer papel ADMIN");
+        if (!u.can(cdFunction))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "requer a função " + cdFunction);
         return u;
     }
 }

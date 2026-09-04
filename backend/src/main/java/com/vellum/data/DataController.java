@@ -78,11 +78,15 @@ public class DataController {
         data.delete(table, id, vision, usuario(req));
     }
 
-    /** Opções de combo (id + rótulo) para campos ENTITY — sem expor a linha inteira. */
+    /**
+     * Opções de combo (id + rótulo) para colunas ENTITY — sem expor a linha
+     * inteira. Leva a visão em tela em ?_vision=: o acesso é o dela.
+     */
     @GetMapping("/api/lookup/{table}")
     public List<Map<String, Object>> lookup(@PathVariable String table,
-                                            @RequestParam Map<String, String> params) {
-        return data.lookup(table, params);
+                                            @RequestParam Map<String, String> params,
+                                            HttpServletRequest req) {
+        return data.lookup(table, params.get("_vision"), usuario(req), params);
     }
 
     private static CurrentUser usuario(HttpServletRequest req) {

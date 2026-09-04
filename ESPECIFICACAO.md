@@ -8,6 +8,18 @@
 > Casos de prova: reconstruir o **integrator** e o **gym** usando apenas cadastros
 > (mais os pontos de extensão descritos na seção 12).
 
+> **Nota de revisão (2026-09-04).** O Vellum ganhou nomenclatura em inglês e um
+> modelo de acesso multi-estabelecimento. O que mudou em relação ao texto
+> abaixo: `tables` → `table`, `table_field` → `column`, `vision_field` →
+> `vision_column`; a antiga tabela `function` (código Java) virou `handler`, e
+> `function` passou a ser o catálogo de permissão; `app_user`/`role`/`user_role`
+> deram lugar a `person`, `profile`, `person_profile`, `person_establishment`,
+> `group`, `establishment`, `function_establishment` e `function_profile`. As
+> variáveis de contexto passaram a ser `:person_id`, `:person_record`,
+> `:establishment_id`. Novas tabelas `index` e `constraint` descrevem o schema
+> físico, com geração de DDL prevista. O README tem o modelo de acesso
+> atualizado; esta especificação ainda descreve o desenho original.
+
 ---
 
 ## 1. Conceito e princípios

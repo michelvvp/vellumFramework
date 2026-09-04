@@ -1,4 +1,4 @@
-package com.vellum.function;
+package com.vellum.handler;
 
 import com.vellum.auth.CurrentUser;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -6,7 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.Map;
 
 /**
- * Contexto entregue a um FunctionHandler.
+ * Contexto entregue a um Handler.
  *
  * @param user      quem chamou
  * @param visionKey visão de origem (ACTION/AUTH; null em HOOK/ENDPOINT direto)
@@ -17,7 +17,7 @@ import java.util.Map;
  * @param params    parâmetros livres enviados pelo front
  * @param jdbc      acesso ao banco para o handler
  */
-public record FunctionContext(
+public record HandlerContext(
         CurrentUser user, String visionKey, String table, String operation,
         Long recordId, Map<String, Object> payload, Map<String, Object> params,
         JdbcTemplate jdbc) {}

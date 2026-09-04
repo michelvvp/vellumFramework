@@ -8,7 +8,7 @@ export interface DomainValue {
   color?: string | null
 }
 
-export interface FieldDef {
+export interface ColumnDef {
   type: string
   label: string
   domain?: string
@@ -28,11 +28,11 @@ export interface TableDef {
   label: string
   labelPlural: string
   labelFields?: string[]
-  fields: Record<string, FieldDef>
+  columns: Record<string, ColumnDef>
 }
 
-export interface VisionFieldDef {
-  field: string
+export interface VisionColumnDef {
+  column: string
   label: string
   component?: string
   grid: boolean
@@ -43,7 +43,7 @@ export interface VisionFieldDef {
   orderForm?: number
   width?: number
   format?: string
-  refFilterField?: string
+  refFilterColumn?: string
 }
 
 export interface ActionDef {
@@ -62,7 +62,7 @@ export interface WidgetDef {
 }
 
 export interface ValidationDef {
-  field?: string
+  column?: string
   expression?: string
   message?: string
 }
@@ -73,7 +73,7 @@ export interface VisionDef {
   table?: string
   type: 'GRID' | 'MASTER_DETAIL' | 'DASHBOARD' | 'CUSTOM'
   parent?: string
-  parentFkField?: string
+  parentFkColumn?: string
   component?: string
   icon?: string
   iconColor?: string
@@ -81,7 +81,7 @@ export interface VisionDef {
   order?: number
   readOnly?: boolean
   allow: { create: boolean; update: boolean; delete: boolean }
-  fields: VisionFieldDef[]
+  columns: VisionColumnDef[]
   children: string[]
   actions: ActionDef[]
   widgets: WidgetDef[]
@@ -98,5 +98,20 @@ export interface Meta {
   tables: Record<string, TableDef>
   visions: VisionDef[]
   menuGroups: { label: string; order: number }[]
-  user: { id: number; name: string; login: string; roles: string[] }
+  user: {
+    id: number
+    name: string
+    login: string
+    /** códigos de função efetivos no estabelecimento ativo */
+    functions: string[]
+    establishmentId: number
+    establishmentName: string
+  }
+}
+
+/** Estabelecimento oferecido no login de quem tem vínculo com mais de um. */
+export interface EstablishmentDef {
+  id: number
+  name: string
+  color?: string
 }

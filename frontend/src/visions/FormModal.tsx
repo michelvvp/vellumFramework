@@ -25,10 +25,10 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
   const edicao = !!registro?.nr_sequence
   const tabela = meta.tables[vision.table!]
 
-  const campos = useMemo(() => vision.fields
+  const campos = useMemo(() => vision.columns
     .filter(f => f.form)
     // o FK do pai é preenchido automaticamente quando se navega a partir dele
-    .filter(f => !(vision.parentFkField === f.field && parentId !== undefined))
+    .filter(f => !(vision.parentFkColumn === f.column && parentId !== undefined))
     .sort((a, b) => (a.orderForm ?? 999) - (b.orderForm ?? 999)), [vision, parentId])
 
   const [values, setValues] = useState<Row>({})
@@ -56,26 +56,26 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
   useEffect(() => {
     if (!aberto) return
     for (const vf of campos) {
-      const def = tabela.fields[vf.field]
+      const def = tabela.columns[vf.column]
       if (def?.type !== 'ENTITY' || !def.refTable) continue
       const params: Record<string, any> = {}
-      if (vf.refFilterField) {
-        const filtro = values[vf.refFilterField]
+      if (vf.refFilterColumn) {
+        const filtro = values[vf.refFilterColumn]
         if (filtro === null || filtro === undefined || filtro === '') {
-          setOpcoes(prev => ({ ...prev, [vf.field]: [] }))
+          setOpcoes(prev => ({ ...prev, [vf.column]: [] }))
           continue
         }
-        params[vf.refFilterField] = filtro
+        params[vf.refFilterColumn] = filtro
       }
-      data.lookup(def.refTable, params)
+      data.lookup(def.refTable, vision.key, params)
         .then(rows => setOpcoes(prev => ({
           ...prev,
-          [vf.field]: rows.map(r => ({ value: String(r.id), label: r.label || `#${r.id}` })),
+          [vf.column]: rows.map(r => ({ value: String(r.id), label: r.label || `#${r.id}` })),
         })))
-        .catch(() => setOpcoes(prev => ({ ...prev, [vf.field]: [] })))
+        .catch(() => setOpcoes(prev => ({ ...prev, [vf.column]: [] })))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberto, ...campos.map(vf => vf.refFilterField ? values[vf.refFilterField] : null)])
+  }, [aberto, ...campos.map(vf => vf.refFilterColumn ? values[vf.refFilterColumn] : null)])
 
   function set(campo: string, v: any) {
     setValues(prev => ({ ...prev, [campo]: v }))
@@ -94,13 +94,13 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
       const payload: Row = {}
       for (const vf of campos) {
         if (vf.readOnly) continue
-        const def = tabela.fields[vf.field]
-        let v = values[vf.field]
+        const def = tabela.columns[vf.column]
+        let v = values[vf.column]
         if (def.type === 'ENTITY' && v !== null && v !== undefined && v !== '') v = Number(v)
-        payload[vf.field] = v === undefined ? null : v
+        payload[vf.column] = v === undefined ? null : v
       }
-      if (vision.parentFkField && parentId !== undefined && !edicao) {
-        payload[vision.parentFkField] = parentId
+      if (vision.parentFkColumn && parentId !== undefined && !edicao) {
+        payload[vision.parentFkColumn] = parentId
       }
       if (edicao) await data.update(vision.table!, registro!.nr_sequence, vision.key, payload)
       else await data.create(vision.table!, vision.key, payload)
@@ -113,7 +113,7 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
           else setErroGeral(fe.message)
         }
         setErros(porCampo)
-        const semCampo = err.errors.filter((fe: any) => !fe.field || !campos.some(c => c.field === fe.field))
+        const semCampo = err.errors.filter((fe: any) => !fe.field || !campos.some(c => c.column === fe.field))
         if (semCampo.length) setErroGeral(semCampo.map((fe: any) => fe.message).join('; '))
       } else {
         setErroGeral(err.message)
@@ -137,14 +137,14 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
         {aberto && (
           <form className="stack" style={{ gap: 'var(--space-md)', marginTop: 'var(--space-md)' }} onSubmit={salvar}>
             {campos.map(vf => {
-              const def = tabela.fields[vf.field]
+              const def = tabela.columns[vf.column]
               if (!def) return null
               return (
-                <FieldInput key={vf.field} vf={vf} def={def}
-                  value={values[vf.field] ?? null}
-                  onChange={v => set(vf.field, v)}
-                  error={erros[vf.field]}
-                  entityOptions={opcoes[vf.field]}
+                <FieldInput key={vf.column} vf={vf} def={def}
+                  value={values[vf.column] ?? null}
+                  onChange={v => set(vf.column, v)}
+                  error={erros[vf.column]}
+                  entityOptions={opcoes[vf.column]}
                   disabled={vf.readOnly || !!def.computed} />
               )
             })}

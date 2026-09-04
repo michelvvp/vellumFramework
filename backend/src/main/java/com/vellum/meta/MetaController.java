@@ -27,7 +27,7 @@ public class MetaController {
     /** Recarrega o dicionário sem reiniciar (depois de editar cadastros de tela). */
     @PostMapping("/reload")
     public Map<String, Object> reload(HttpServletRequest request) {
-        AuthTokenFilter.exigirAdmin(request);
+        AuthTokenFilter.exigirFuncao(request, "DICTIONARY_EDIT");
         meta.reload();
         return Map.of("version", meta.get().version);
     }

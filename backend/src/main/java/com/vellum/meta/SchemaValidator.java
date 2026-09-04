@@ -53,8 +53,13 @@ public class SchemaValidator {
                 erros.add("tabela '" + t.name() + "' com exclusão lógica exige coluna ie_active");
             if (t.audit() && !colunas.contains("dt_created"))
                 erros.add("tabela '" + t.name() + "' com auditoria exige coluna dt_created");
+            // toda tabela de negócio é escopada por estabelecimento; sem a coluna
+            // o CRUD genérico não teria como isolar um cliente do outro
+            if (!t.system() && !colunas.contains("nr_seq_establishment"))
+                erros.add("tabela de negócio '" + t.name() + "' exige a coluna nr_seq_establishment "
+                        + "(ou ie_system = true, se for tabela do próprio Vellum)");
 
-            for (MetaModel.Field f : t.fields().values()) {
+            for (MetaModel.Column f : t.columns().values()) {
                 if (f.computed()) {
                     validarFormula(t, f, erros);
                 } else if (!colunas.contains(f.name())) {
@@ -69,11 +74,11 @@ public class SchemaValidator {
         }
     }
 
-    private void validarFormula(MetaModel.Table t, MetaModel.Field f, List<String> erros) {
+    private void validarFormula(MetaModel.Table t, MetaModel.Column f, List<String> erros) {
         Matcher m = IDENT.matcher(f.formula());
         while (m.find()) {
             String ident = m.group().toLowerCase();
-            boolean campo = t.fields().containsKey(ident) && !t.fields().get(ident).computed();
+            boolean campo = t.columns().containsKey(ident) && !t.columns().get(ident).computed();
             if (!campo && !FUNCOES_PERMITIDAS.contains(ident)) {
                 erros.add("fórmula de '" + t.name() + "." + f.name()
                         + "' usa identificador não permitido: '" + ident + "'");

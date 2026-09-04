@@ -1,4 +1,4 @@
-package com.vellum.function;
+package com.vellum.handler;
 
 import com.vellum.auth.AuthTokenFilter;
 import com.vellum.auth.CurrentUser;
@@ -21,13 +21,13 @@ import java.util.Map;
  * motor /integrate do integrator plugado por cadastro).
  */
 @RestController
-public class FunctionController {
+public class HandlerController {
 
     private final MetaService meta;
-    private final FunctionRegistry registry;
+    private final HandlerRegistry registry;
     private final JdbcTemplate jdbc;
 
-    public FunctionController(MetaService meta, FunctionRegistry registry, JdbcTemplate jdbc) {
+    public HandlerController(MetaService meta, HandlerRegistry registry, JdbcTemplate jdbc) {
         this.meta = meta;
         this.registry = registry;
         this.jdbc = jdbc;
@@ -39,17 +39,17 @@ public class FunctionController {
     public Object executar(@PathVariable String name, @RequestBody(required = false) Chamada corpo,
                            HttpServletRequest req) {
         CurrentUser user = AuthTokenFilter.usuarioAtual(req);
-        MetaModel.Function fn = meta.get().functions.stream()
+        MetaModel.Handler fn = meta.get().handlers.stream()
                 .filter(f -> f.name().equals(name))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "function '" + name + "' não cadastrada"));
+                        "handler '" + name + "' não cadastrado"));
 
         if (!"ACTION".equals(fn.type()) && !"ENDPOINT".equals(fn.type()))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "function '" + name + "' não é executável diretamente (tipo " + fn.type() + ")");
-        if (fn.role() != null && !user.hasRole(fn.role()))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "requer papel " + fn.role());
+                    "handler '" + name + "' não é executável diretamente (tipo " + fn.type() + ")");
+        if (fn.function() != null && !user.can(fn.function()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "requer a função " + fn.function());
 
         // ACTION vive numa visão: quem não pode ler a visão não executa a ação
         if ("ACTION".equals(fn.type()) && fn.visionKey() != null) {
@@ -59,7 +59,7 @@ public class FunctionController {
         }
 
         Chamada c = corpo == null ? new Chamada(null, null, Map.of()) : corpo;
-        Object resultado = registry.handler(fn.handler()).execute(new FunctionContext(
+        Object resultado = registry.handler(fn.bean()).execute(new HandlerContext(
                 user, c.visionKey() != null ? c.visionKey() : fn.visionKey(), fn.table(),
                 fn.type(), c.recordId(), null,
                 c.params() == null ? Map.of() : c.params(), jdbc));

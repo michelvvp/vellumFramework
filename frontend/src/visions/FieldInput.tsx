@@ -1,6 +1,6 @@
 import { useMeta } from '../meta'
 import { DatePicker, Popup, type PopupOption } from '../ui'
-import type { FieldDef, VisionFieldDef } from '../types'
+import type { ColumnDef, VisionColumnDef } from '../types'
 
 /*
  * Um campo do formulário genérico: escolhe o widget pelo ie_component da
@@ -8,8 +8,8 @@ import type { FieldDef, VisionFieldDef } from '../types'
  * system (catálogo da seção 3.6 da especificação).
  */
 export default function FieldInput({ vf, def, value, onChange, error, entityOptions, disabled }: {
-  vf: VisionFieldDef
-  def: FieldDef
+  vf: VisionColumnDef
+  def: ColumnDef
   value: any
   onChange: (v: any) => void
   error?: string
@@ -17,7 +17,7 @@ export default function FieldInput({ vf, def, value, onChange, error, entityOpti
   disabled?: boolean
 }) {
   const { meta } = useMeta()
-  const id = `f-${vf.field}`
+  const id = `f-${vf.column}`
   const component = vf.component || defaultComponent(def)
   const texto = value === null || value === undefined ? '' : String(value)
 
@@ -127,7 +127,7 @@ export default function FieldInput({ vf, def, value, onChange, error, entityOpti
   )
 }
 
-function rotulo(vf: VisionFieldDef, def: FieldDef) {
+function rotulo(vf: VisionColumnDef, def: ColumnDef) {
   return vf.label || def.label
 }
 
@@ -135,7 +135,7 @@ function rotuloDe(opcoes: PopupOption[], valor: string) {
   return opcoes.find(o => o.value === valor)?.label ?? valor
 }
 
-export function defaultComponent(def: FieldDef): string {
+export function defaultComponent(def: ColumnDef): string {
   switch (def.type) {
     case 'BOOLEAN': return 'SWITCH'
     case 'TEXT': case 'JSON': return 'TEXTAREA'

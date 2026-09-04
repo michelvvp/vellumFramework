@@ -69,8 +69,8 @@ export const data = {
     api.del(`/data/${table}/${id}${query({ _vision: vision })}`),
   reorder: (table: string, vision: string, ids: number[]): Promise<void> =>
     api.put(`/data/${table}/ordem${query({ _vision: vision })}`, { ids }),
-  lookup: (table: string, params: Record<string, any> = {}): Promise<{ id: number; label: string }[]> =>
-    api.get(`/lookup/${table}${query(params)}`),
+  lookup: (table: string, vision: string, params: Record<string, any> = {}): Promise<{ id: number; label: string }[]> =>
+    api.get(`/lookup/${table}${query({ ...params, _vision: vision })}`),
   execute: (name: string, corpo: { visionKey?: string; recordId?: number; params?: any } = {}) =>
     api.post(`/function/${name}`, corpo),
   dashboard: (visionKey: string, from?: string, to?: string) =>

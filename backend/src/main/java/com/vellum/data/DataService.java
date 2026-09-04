@@ -2,7 +2,7 @@ package com.vellum.data;
 
 import com.vellum.auth.AuthService;
 import com.vellum.auth.CurrentUser;
-import com.vellum.function.FunctionRegistry;
+import com.vellum.handler.HandlerRegistry;
 import com.vellum.meta.MetaModel;
 import com.vellum.meta.MetaService;
 import com.vellum.meta.Permissions;
@@ -47,12 +47,12 @@ public class DataService {
     private final SchemaValidator schema;
     private final ValidationEngine validation;
     private final RestrictionEngine restriction;
-    private final FunctionRegistry functions;
+    private final HandlerRegistry functions;
     private final AuthService auth;
 
     public DataService(JdbcTemplate jdbc, MetaService meta, SchemaValidator schema,
                        ValidationEngine validation, RestrictionEngine restriction,
-                       FunctionRegistry functions, AuthService auth) {
+                       HandlerRegistry functions, AuthService auth) {
         this.jdbc = jdbc;
         this.meta = meta;
         this.schema = schema;
@@ -82,7 +82,7 @@ public class DataService {
             if (chave.endsWith("__gte")) { campo = chave.substring(0, chave.length() - 5); sufixo = ">="; }
             else if (chave.endsWith("__lte")) { campo = chave.substring(0, chave.length() - 5); sufixo = "<="; }
             else if (chave.endsWith("__like")) { campo = chave.substring(0, chave.length() - 6); sufixo = "LIKE"; }
-            MetaModel.Field f = t.fields().get(campo);
+            MetaModel.Column f = t.columns().get(campo);
             if (f == null || f.computed()) continue; // param desconhecido é ignorado
             if (sufixo.equals("LIKE")) {
                 where.add("t.`" + ident(campo) + "` LIKE ?");
@@ -125,6 +125,7 @@ public class DataService {
         MetaModel.Vision v = visao(t, visionKey, user, "CREATE", null, payload);
 
         Map<String, Object> linha = coagirPayload(t, payload, true);
+        linha.remove("nr_seq_establishment");
         aplicarDefaults(t, linha);
         functions.hooks(t.name(), "BEFORE_CREATE", user, null, linha);
         validation.validar(t, v, linha, null);
@@ -132,10 +133,15 @@ public class DataService {
         List<String> colunas = new ArrayList<>();
         List<Object> valores = new ArrayList<>();
         for (Map.Entry<String, Object> e : linha.entrySet()) {
-            MetaModel.Field f = t.fields().get(e.getKey());
+            MetaModel.Column f = t.columns().get(e.getKey());
             if (f == null || f.computed()) continue;
             colunas.add("`" + ident(e.getKey()) + "`");
             valores.add(paraBanco(f, e.getValue()));
+        }
+        if (escopadaPorEstabelecimento(t)) {
+            // o estabelecimento vem da sessão, nunca do payload
+            colunas.add("`nr_seq_establishment`");
+            valores.add(user.establishmentId());
         }
         if (t.audit() && schema.colunasDe(t.name()).contains("nm_user_created")) {
             colunas.add("`nm_user_created`");
@@ -165,6 +171,7 @@ public class DataService {
         exigirVisivel(t, v, user, id); // row-level security: só altera o que a visão alcança
 
         Map<String, Object> mudancas = coagirPayload(t, payload, false);
+        mudancas.remove("nr_seq_establishment"); // não se troca um registro de estabelecimento
         // a linha completa (atual + mudanças) é o que as validações enxergam
         Map<String, Object> atual = linhaCrua(t, id);
         Map<String, Object> linha = new LinkedHashMap<>(atual);
@@ -172,7 +179,7 @@ public class DataService {
         functions.hooks(t.name(), "BEFORE_UPDATE", user, id, linha);
         // hooks podem ter mudado a linha; o que difere do atual é o que persiste
         for (Map.Entry<String, Object> e : linha.entrySet()) {
-            if (t.fields().containsKey(e.getKey()) && !java.util.Objects.equals(atual.get(e.getKey()), e.getValue())) {
+            if (t.columns().containsKey(e.getKey()) && !java.util.Objects.equals(atual.get(e.getKey()), e.getValue())) {
                 mudancas.put(e.getKey(), e.getValue());
             }
         }
@@ -182,7 +189,7 @@ public class DataService {
             List<String> sets = new ArrayList<>();
             List<Object> valores = new ArrayList<>();
             for (Map.Entry<String, Object> e : mudancas.entrySet()) {
-                MetaModel.Field f = t.fields().get(e.getKey());
+                MetaModel.Column f = t.columns().get(e.getKey());
                 if (f == null || f.computed()) continue;
                 sets.add("`" + ident(e.getKey()) + "` = ?");
                 valores.add(paraBanco(f, e.getValue()));
@@ -224,7 +231,7 @@ public class DataService {
     public void reorder(String table, String visionKey, CurrentUser user, List<Long> ids) {
         MetaModel.Table t = tabela(table);
         MetaModel.Vision v = visao(t, visionKey, user, "UPDATE", null, null);
-        if (!t.fields().containsKey("nr_order") && !schema.colunasDe(t.name()).contains("nr_order"))
+        if (!t.columns().containsKey("nr_order") && !schema.colunasDe(t.name()).contains("nr_order"))
             throw new IllegalArgumentException("tabela " + table + " não tem coluna nr_order");
         for (long id : ids) exigirVisivel(t, v, user, id);
         for (int i = 0; i < ids.size(); i++) {
@@ -235,15 +242,44 @@ public class DataService {
 
     /* ============================ lookup (combos) ============================ */
 
-    /** Opções id+rótulo de uma entidade para combos de FK — só o necessário, nada da linha. */
-    public List<Map<String, Object>> lookup(String table, Map<String, String> params) {
-        MetaModel.Table t = tabela(table);
-        String rotulo = exprRotulo(t, "t");
+    /**
+     * Opções id+rótulo de uma entidade para combos de FK — só o id e o rótulo,
+     * nada do resto da linha.
+     *
+     * A visão de contexto é a que está na tela (a da tabela de origem), e o
+     * acesso é o dela: quem pode ler a visão pode resolver os rótulos das FKs
+     * que a visão usa. Por isso a tabela pedida precisa ser mesmo referenciada
+     * por uma coluna ENTITY da tabela da visão — sem essa amarração o combo
+     * viraria uma porta lateral para listar qualquer tabela do dicionário.
+     */
+    public List<Map<String, Object>> lookup(String table, String visionKey, CurrentUser user,
+                                            Map<String, String> params) {
+        MetaModel.Table alvo = tabela(table);
+        if (visionKey == null || visionKey.isBlank())
+            throw new IllegalArgumentException("parâmetro _vision é obrigatório");
+        MetaModel.Vision v = meta.get().visions.get(visionKey);
+        if (v == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                "visão '" + visionKey + "' não cadastrada");
+        if (!Permissions.podeLer(v, user))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "sem acesso à visão " + v.title());
+
+        MetaModel.Table origem = v.table() == null ? null : meta.get().tables.get(v.table());
+        boolean referenciada = origem != null && origem.columns().values().stream()
+                .anyMatch(c -> "ENTITY".equals(c.type()) && alvo.name().equals(c.refTable()));
+        if (!referenciada)
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "a visão " + visionKey + " não referencia a tabela " + table);
+
+        String rotulo = exprRotulo(alvo, "t");
         StringBuilder sql = new StringBuilder("SELECT t.nr_sequence AS id, " + rotulo + " AS label FROM `"
-                + t.name() + "` t");
+                + alvo.name() + "` t");
         List<Object> args = new ArrayList<>();
         List<String> where = new ArrayList<>();
-        if (t.logicalDelete()) where.add("t.ie_active");
+        if (alvo.logicalDelete()) where.add("t.ie_active");
+        if (escopadaPorEstabelecimento(alvo)) {
+            where.add("t.nr_seq_establishment = ?");
+            args.add(user.establishmentId());
+        }
         for (Map.Entry<String, String> p : params.entrySet()) {
             if (p.getKey().startsWith("_") || p.getValue() == null || p.getValue().isBlank()) continue;
             if ("q".equals(p.getKey())) {
@@ -251,10 +287,10 @@ public class DataService {
                 args.add("%" + p.getValue() + "%");
                 continue;
             }
-            MetaModel.Field f = t.fields().get(p.getKey());
-            if (f == null || f.computed()) continue;
+            MetaModel.Column c = alvo.columns().get(p.getKey());
+            if (c == null || c.computed()) continue;
             where.add("t.`" + ident(p.getKey()) + "` = ?");
-            args.add(coagir(f, p.getValue()));
+            args.add(coagir(c, p.getValue()));
         }
         if (!where.isEmpty()) sql.append(" WHERE ").append(String.join(" AND ", where));
         sql.append(" ORDER BY label LIMIT 500");
@@ -268,7 +304,7 @@ public class DataService {
         cols.add("t.nr_sequence");
         List<String> joins = new ArrayList<>();
         int nJoin = 0;
-        for (MetaModel.Field f : t.fields().values()) {
+        for (MetaModel.Column f : t.columns().values()) {
             if ("PASSWORD".equals(f.type())) continue; // hash nunca sai do banco
             if (f.computed()) {
                 cols.add("(" + f.formula() + ") AS `" + ident(f.name()) + "`");
@@ -299,6 +335,10 @@ public class DataService {
                                    Long parentId, List<Object> args) {
         List<String> where = new ArrayList<>();
         if (t.logicalDelete()) where.add("t.ie_active");
+        if (escopadaPorEstabelecimento(t)) {
+            where.add("t.nr_seq_establishment = ?");
+            args.add(user.establishmentId());
+        }
         RestrictionEngine.Where filtros = restriction.filtros(v, user, parentId);
         if (!filtros.sql().isEmpty()) {
             where.add(filtros.sql());
@@ -307,8 +347,18 @@ public class DataService {
         return where;
     }
 
+    /**
+     * Toda tabela de negócio é escopada pelo estabelecimento ativo — não é
+     * opcional. As tabelas do próprio Vellum (ie_system) são configuração do
+     * produto e ficam de fora; uma tabela de negócio sem a coluna
+     * nr_seq_establishment é recusada no boot pelo SchemaValidator.
+     */
+    private boolean escopadaPorEstabelecimento(MetaModel.Table t) {
+        return !t.system();
+    }
+
     private String orderBy(MetaModel.Table t) {
-        return t.fields().containsKey("nr_order") || schema.colunasDe(t.name()).contains("nr_order")
+        return t.columns().containsKey("nr_order") || schema.colunasDe(t.name()).contains("nr_order")
                 ? " ORDER BY t.nr_order, t.nr_sequence"
                 : " ORDER BY t.nr_sequence";
     }
@@ -361,8 +411,8 @@ public class DataService {
     }
 
     private Long parentId(MetaModel.Vision v, Map<String, String> params) {
-        if (v.parentFkField() == null) return null;
-        String valor = params.get(v.parentFkField());
+        if (v.parentFkColumn() == null) return null;
+        String valor = params.get(v.parentFkColumn());
         return valor == null || valor.isBlank() ? null : Long.parseLong(valor);
     }
 
@@ -373,7 +423,7 @@ public class DataService {
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT * FROM `" + t.name() + "` WHERE nr_sequence = ?", id);
         Map<String, Object> soCampos = new LinkedHashMap<>();
-        for (MetaModel.Field f : t.fields().values()) {
+        for (MetaModel.Column f : t.columns().values()) {
             if (!f.computed() && row.containsKey(f.name())) soCampos.put(f.name(), row.get(f.name()));
         }
         return soCampos;
@@ -383,7 +433,7 @@ public class DataService {
                                               boolean criacao) {
         Map<String, Object> linha = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : payload.entrySet()) {
-            MetaModel.Field f = t.fields().get(e.getKey());
+            MetaModel.Column f = t.columns().get(e.getKey());
             if (f == null || f.computed()) continue; // campo desconhecido é ignorado
             Object v = e.getValue();
             if ("PASSWORD".equals(f.type())) {
@@ -401,13 +451,13 @@ public class DataService {
     }
 
     private void aplicarDefaults(MetaModel.Table t, Map<String, Object> linha) {
-        for (MetaModel.Field f : t.fields().values()) {
+        for (MetaModel.Column f : t.columns().values()) {
             if (f.computed() || linha.containsKey(f.name()) || f.defaultValue() == null) continue;
             linha.put(f.name(), coagir(f, f.defaultValue()));
         }
     }
 
-    private Object coagir(MetaModel.Field f, Object v) {
+    private Object coagir(MetaModel.Column f, Object v) {
         try {
             String s = String.valueOf(v);
             return switch (f.type()) {
@@ -428,7 +478,7 @@ public class DataService {
     }
 
     /** Tipos java.time viram SQL sem drama; o resto passa direto. */
-    private Object paraBanco(MetaModel.Field f, Object v) {
+    private Object paraBanco(MetaModel.Column f, Object v) {
         if (v instanceof LocalDate d) return java.sql.Date.valueOf(d);
         if (v instanceof LocalDateTime dt) return java.sql.Timestamp.valueOf(dt);
         if (v instanceof LocalTime t) return java.sql.Time.valueOf(t);

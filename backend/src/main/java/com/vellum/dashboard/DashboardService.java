@@ -52,7 +52,7 @@ public class DashboardService {
             item.put("title", w.title());
             item.put("type", w.type());
             item.put("data", calcular(v, w, user, from, to));
-            if (!w.fieldsY().isEmpty()) item.put("series", w.fieldsY());
+            if (!w.columnsY().isEmpty()) item.put("series", w.columnsY());
             widgets.add(item);
         }
         saida.put("widgets", widgets);
@@ -67,45 +67,50 @@ public class DashboardService {
         List<Object> args = new ArrayList<>();
         List<String> where = new ArrayList<>();
         if (t.logicalDelete()) where.add("t.ie_active");
+        // mesmo escopo do CRUD: um widget nunca soma dado de outro estabelecimento
+        if (!t.system()) {
+            where.add("t.nr_seq_establishment = ?");
+            args.add(user.establishmentId());
+        }
         RestrictionEngine.Where filtros = restriction.filtros(v, user, null);
         if (!filtros.sql().isEmpty()) {
             where.add(filtros.sql());
             args.addAll(filtros.params());
         }
-        if (w.usePeriod() && w.fieldX() != null) {
-            if (from != null && !from.isBlank()) { where.add(campo(t, w.fieldX()) + " >= ?"); args.add(from); }
-            if (to != null && !to.isBlank()) { where.add(campo(t, w.fieldX()) + " <= ?"); args.add(to + " 23:59:59"); }
+        if (w.usePeriod() && w.columnX() != null) {
+            if (from != null && !from.isBlank()) { where.add(campo(t, w.columnX()) + " >= ?"); args.add(from); }
+            if (to != null && !to.isBlank()) { where.add(campo(t, w.columnX()) + " <= ?"); args.add(to + " 23:59:59"); }
         }
         String whereSql = where.isEmpty() ? "" : " WHERE " + String.join(" AND ", where);
 
         return switch (w.type()) {
             case "VALUE" -> {
-                String expr = w.fieldsY().isEmpty() ? "COUNT(*)"
-                        : agregar(w.aggregation(), campo(t, w.fieldsY().get(0)));
+                String expr = w.columnsY().isEmpty() ? "COUNT(*)"
+                        : agregar(w.aggregation(), campo(t, w.columnsY().get(0)));
                 yield jdbc.queryForObject("SELECT " + expr + " FROM `" + t.name() + "` t" + whereSql,
                         Object.class, args.toArray());
             }
             case "CHART_LINE", "CHART_BAR" -> {
                 String grupoExpr = switch (w.groupBy() == null ? "NONE" : w.groupBy()) {
-                    case "DAY" -> "DATE_FORMAT(" + campo(t, w.fieldX()) + ", '%Y-%m-%d')";
-                    case "WEEK" -> "DATE_FORMAT(DATE_SUB(" + campo(t, w.fieldX())
-                            + ", INTERVAL WEEKDAY(" + campo(t, w.fieldX()) + ") DAY), '%Y-%m-%d')";
-                    case "MONTH" -> "DATE_FORMAT(" + campo(t, w.fieldX()) + ", '%Y-%m')";
-                    case "FIELD" -> campo(t, w.groupField());
+                    case "DAY" -> "DATE_FORMAT(" + campo(t, w.columnX()) + ", '%Y-%m-%d')";
+                    case "WEEK" -> "DATE_FORMAT(DATE_SUB(" + campo(t, w.columnX())
+                            + ", INTERVAL WEEKDAY(" + campo(t, w.columnX()) + ") DAY), '%Y-%m-%d')";
+                    case "MONTH" -> "DATE_FORMAT(" + campo(t, w.columnX()) + ", '%Y-%m')";
+                    case "FIELD" -> campo(t, w.groupColumn());
                     default -> null;
                 };
                 List<String> cols = new ArrayList<>();
                 StringBuilder sql = new StringBuilder("SELECT ");
                 if (grupoExpr != null) {
                     cols.add(grupoExpr + " AS x");
-                    for (String y : w.fieldsY()) cols.add(agregar(w.aggregation(), campo(t, y))
+                    for (String y : w.columnsY()) cols.add(agregar(w.aggregation(), campo(t, y))
                             + " AS `" + ident(y) + "`");
                     sql.append(String.join(", ", cols))
                             .append(" FROM `").append(t.name()).append("` t").append(whereSql)
                             .append(" GROUP BY x ORDER BY x");
                 } else {
-                    cols.add(campo(t, w.fieldX()) + " AS x");
-                    for (String y : w.fieldsY()) cols.add(campo(t, y) + " AS `" + ident(y) + "`");
+                    cols.add(campo(t, w.columnX()) + " AS x");
+                    for (String y : w.columnsY()) cols.add(campo(t, y) + " AS `" + ident(y) + "`");
                     sql.append(String.join(", ", cols))
                             .append(" FROM `").append(t.name()).append("` t").append(whereSql)
                             .append(" ORDER BY x");
@@ -116,7 +121,7 @@ public class DashboardService {
                 String rotulo = t.labelFields().isEmpty() ? "CAST(t.nr_sequence AS CHAR)"
                         : "CONCAT_WS(' · ', " + String.join(", ",
                                 t.labelFields().stream().map(lf -> "t.`" + ident(lf) + "`").toList()) + ")";
-                String ordem = w.fieldX() != null ? campo(t, w.fieldX()) : "t.nr_sequence";
+                String ordem = w.columnX() != null ? campo(t, w.columnX()) : "t.nr_sequence";
                 int limite = w.limit() == null ? 5 : w.limit();
                 yield jdbc.queryForList("SELECT t.nr_sequence AS id, " + rotulo + " AS label, "
                                 + ordem + " AS x FROM `" + t.name() + "` t" + whereSql
@@ -129,7 +134,7 @@ public class DashboardService {
 
     /** Campo do widget: físico vira t.`nome`; calculado vira a fórmula (já validada no boot). */
     private String campo(MetaModel.Table t, String nome) {
-        MetaModel.Field f = t.fields().get(nome);
+        MetaModel.Column f = t.columns().get(nome);
         if (f == null) throw new IllegalArgumentException(
                 "widget usa campo inexistente: " + t.name() + "." + nome);
         return f.computed() ? "(" + f.formula() + ")" : "t.`" + ident(nome) + "`";

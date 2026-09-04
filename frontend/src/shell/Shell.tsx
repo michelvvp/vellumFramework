@@ -20,7 +20,7 @@ interface StackEntry {
 
 export default function Shell() {
   const { meta, refresh } = useMeta()
-  const { auth, logout } = useAuth()
+  const { auth, logout, pode } = useAuth()
   const toast = useToast()
 
   const menu = useMemo(() => {
@@ -77,7 +77,7 @@ export default function Shell() {
     }
   }
 
-  const ehAdmin = auth?.user.roles.includes('ADMIN')
+  const ehAdmin = pode('DICTIONARY_EDIT')
   const itensTabbar = menu.flatMap(g => g.visions).slice(0, 4)
 
   return (

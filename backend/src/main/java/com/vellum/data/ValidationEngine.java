@@ -32,7 +32,7 @@ public class ValidationEngine {
                         Map<String, Object> linha, Long id) {
         List<ValidationException.FieldError> erros = new ArrayList<>();
 
-        for (MetaModel.Field f : table.fields().values()) {
+        for (MetaModel.Column f : table.columns().values()) {
             if (f.computed()) continue;
             Object v = linha.get(f.name());
             boolean vazio = v == null || (v instanceof String s && s.isBlank());
@@ -81,7 +81,7 @@ public class ValidationEngine {
                             + vision.key() + ": " + e.getMessage());
                 }
                 if (!ok) {
-                    erros.add(new ValidationException.FieldError(r.field(), "expression",
+                    erros.add(new ValidationException.FieldError(r.column(), "expression",
                             r.message() != null ? r.message() : "validação não satisfeita"));
                 }
             }
@@ -90,7 +90,7 @@ public class ValidationEngine {
         if (!erros.isEmpty()) throw new ValidationException(erros);
     }
 
-    private boolean duplicado(MetaModel.Table table, MetaModel.Field f, Object v, Long id) {
+    private boolean duplicado(MetaModel.Table table, MetaModel.Column f, Object v, Long id) {
         String sql = "SELECT COUNT(*) FROM `" + table.name() + "` WHERE `" + f.name() + "` = ?"
                 + (id != null ? " AND nr_sequence != ?" : "");
         Integer n = id != null
@@ -99,7 +99,7 @@ public class ValidationEngine {
         return n != null && n > 0;
     }
 
-    private boolean valorDeDominio(MetaModel.Vision vision, MetaModel.Field f, String v) {
+    private boolean valorDeDominio(MetaModel.Vision vision, MetaModel.Column f, String v) {
         // o domínio já está no MetaModel; consulta direta evita segurar referência ao meta aqui
         Integer n = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM `domain_value` dv JOIN `domain` d ON d.nr_sequence = dv.nr_seq_domain " +
@@ -107,10 +107,10 @@ public class ValidationEngine {
         return n != null && n > 0;
     }
 
-    private static String rotulo(MetaModel.Vision vision, MetaModel.Field f) {
+    private static String rotulo(MetaModel.Vision vision, MetaModel.Column f) {
         if (vision != null) {
-            for (MetaModel.VisionField vf : vision.fields()) {
-                if (vf.field().equals(f.name()) && vf.label() != null) return vf.label();
+            for (MetaModel.VisionColumn vf : vision.columns()) {
+                if (vf.column().equals(f.name()) && vf.label() != null) return vf.label();
             }
         }
         return f.label();
