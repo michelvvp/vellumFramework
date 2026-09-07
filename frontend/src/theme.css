@@ -34,11 +34,14 @@
   text-align: center;
 }
 
-/* Janela de app ocupando a viewport */
+/* Janela de app ocupando a viewport: sem teto de largura, só uma folga igual
+   em volta — a janela é o layout do app, não uma amostra dentro da página.
+   100% e não 100vw: onde a barra de rolagem ocupa espaço (Windows, Linux),
+   100vw a ignora e a janela fica mais larga que a área útil. */
 .app-window {
-  width: min(1180px, calc(100vw - 2 * var(--space-lg)));
-  margin: var(--space-xl) auto;
-  min-height: calc(100dvh - 2 * var(--space-xl));
+  width: calc(100% - 2 * var(--space-md));
+  margin: var(--space-md) auto;
+  min-height: calc(100dvh - 2 * var(--space-md));
 }
 
 .content-header {
