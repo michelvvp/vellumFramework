@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { data } from '../api'
 import { useMeta } from '../meta'
 import {
@@ -32,6 +33,9 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
   const [excluindo, setExcluindo] = useState<Row | null>(null)
   const [confirmandoAcao, setConfirmandoAcao] = useState<{ acao: ActionDef; row?: Row } | null>(null)
   const [menuAberto, setMenuAberto] = useState<number | null>(null) // nr_sequence da linha
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
+  const gatilhoMenu = useRef<HTMLButtonElement | null>(null)
+  const menuFlutuante = useRef<HTMLDivElement | null>(null)
   const [selecaoAberta, setSelecaoAberta] = useState(false)
   const [opcoesSelecao, setOpcoesSelecao] = useState<{ id: number; nome: string }[]>([])
   const [opcoesFiltro, setOpcoesFiltro] = useState<Record<string, PopupOption[]>>({})
@@ -89,12 +93,45 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
     }
   }, [camposFiltro, tabela])
 
-  // menu de contexto fecha em clique fora
+  /* O menu de contexto da linha vai para o <body> (portal) porque todos os
+     ancestrais dele recortam: o .card tem overflow hidden, a .table-wrap rola
+     no eixo x (o que torna o y recortado também) e o .window-content rola no y
+     — na última linha o menu simplesmente sumia. Fora da árvore ele é
+     posicionado à mão a partir do retângulo do botão, e vira para cima quando
+     não cabe abaixo. A .window traz backdrop-filter do DS, que faria bloco
+     contentor para position: fixed: por isso o portal é no body, onde as
+     coordenadas da viewport valem. */
+  useLayoutEffect(() => {
+    if (menuAberto === null) return
+    const botao = gatilhoMenu.current
+    const menu = menuFlutuante.current
+    if (!botao || !menu) return
+    const r = botao.getBoundingClientRect()
+    const largura = menu.offsetWidth
+    const altura = menu.offsetHeight
+    const margem = 8
+    let top = r.bottom + 4
+    if (top + altura > window.innerHeight - margem) top = Math.max(margem, r.top - altura - 4)
+    const left = Math.max(margem, Math.min(r.right - largura, window.innerWidth - largura - margem))
+    setMenuPos({ top, left })
+  }, [menuAberto])
+
+  // menu de contexto fecha em clique fora e ao rolar (posição é fixa na tela)
   useEffect(() => {
     if (menuAberto === null) return
-    const fechar = () => setMenuAberto(null)
+    const fechar = (e: Event) => {
+      if (menuFlutuante.current?.contains(e.target as Node)) return
+      setMenuAberto(null)
+    }
+    const fecharSempre = () => setMenuAberto(null)
     document.addEventListener('pointerdown', fechar)
-    return () => document.removeEventListener('pointerdown', fechar)
+    window.addEventListener('scroll', fecharSempre, true)
+    window.addEventListener('resize', fecharSempre)
+    return () => {
+      document.removeEventListener('pointerdown', fechar)
+      window.removeEventListener('scroll', fecharSempre, true)
+      window.removeEventListener('resize', fecharSempre)
+    }
   }, [menuAberto])
 
   const drag = useArrastarOrdem(setRows, lista => {
@@ -186,12 +223,24 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
         <button className="icon-btn" type="button" data-tooltip="Opções"
           aria-label={`Opções de ${rotuloLinha(row)}`} aria-haspopup="menu"
           aria-expanded={menuAberto === row.nr_sequence}
-          onClick={() => setMenuAberto(m => m === row.nr_sequence ? null : row.nr_sequence)}>
+          onClick={e => {
+            if (menuAberto === row.nr_sequence) { setMenuAberto(null); return }
+            gatilhoMenu.current = e.currentTarget
+            setMenuPos(null)
+            setMenuAberto(row.nr_sequence)
+          }}>
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" />
           </svg>
         </button>
-        <div className="menu" role="menu" hidden={menuAberto !== row.nr_sequence}>
+        {menuAberto === row.nr_sequence && createPortal(
+        <div className="menu menu--flutuante" role="menu" ref={menuFlutuante}
+          style={{
+            position: 'fixed', right: 'auto',
+            top: menuPos?.top ?? 0, left: menuPos?.left ?? 0,
+            // primeiro quadro serve só para medir o menu; ele só aparece posicionado
+            visibility: menuPos ? 'visible' : 'hidden',
+          }}>
           {vision.children.map(childKey => {
             const filho = meta.visions.find(v => v.key === childKey)
             return (
@@ -221,7 +270,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
               <span className="menu-check">✕</span>Excluir
             </button>
           )}
-        </div>
+        </div>, document.body)}
       </span>
     )
   }

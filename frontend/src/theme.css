@@ -139,8 +139,11 @@
   border-radius: var(--radius-md);
 }
 
-/* Menu de contexto da linha da grid (filhos + ações + editar/excluir) */
+/* Menu de contexto da linha da grid (filhos + ações + editar/excluir). O menu
+   em si é renderizado no <body> (portal) e posicionado por JS — ver GridVision:
+   dentro da tabela ele era recortado pelo card/table-wrap na última linha. */
 .row-menu { position: relative; display: inline-flex; }
+.menu--flutuante { z-index: 60; }
 
 /* Grade de widgets do dashboard */
 .grid-cards {
