@@ -1,0 +1,48 @@
+# Deploy isolado do Vellum: MySQL próprio (sem porta no host), frontend em 8095.
+# Nenhuma porta compartilhada com os outros stacks do servidor.
+# Uso: docker compose -p vellum -f docker-compose.prod.yml up -d --build
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-vellum}
+    volumes:
+      - vellum-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_PASSWORD:-123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # sem "ports:" — acessível apenas dentro da rede do compose
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-vellum}
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-123}
+      SERVER_PORT: 8081
+      # assina os tokens de sessão — defina um valor forte no .env do servidor
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:?defina AUTH_TOKEN_SECRET no .env}
+      # senha do admin criado no primeiro boot (só quando app_user está vazio)
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+    depends_on:
+      db:
+        condition: service_healthy
+    # sem "ports:" — acessível apenas via nginx do frontend
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8095}:80"
+
+volumes:
+  vellum-db-data:
