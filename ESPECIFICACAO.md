@@ -191,7 +191,7 @@ Uma `vision` é uma tela ligada a uma tabela. Uma mesma tabela pode ter várias 
 | `nm_component`    | varchar(120)  | Só para `CUSTOM`: nome do componente React registrado            |
 | `nm_icon`         | varchar(60)   | Ícone do menu (`.sidebar-icon`)                                  |
 | `ds_icon_color`   | varchar(20)   | Cor do tile do ícone                                             |
-| `nr_seq_menu_group` | FK → menu_group | Agrupamento na sidebar (seção 3.9)                          |
+| `nr_seq_sidebar_group` | FK → sidebar_group | Agrupamento na sidebar (seção 3.9)                     |
 | `nr_order`        | int           | Ordem no menu (null = não aparece no menu, só como filha)        |
 
 **Arquétipos de renderização** (mapeiam os dois arquétipos do design-system):
@@ -299,8 +299,9 @@ diz *onde e quando*, o código diz *o quê*. É aqui que vivem o motor do integr
 
 Sem estas o framework não fecha os dois casos de prova:
 
-- **`menu_group`** — agrupadores da sidebar (`ds_label`, `nr_order`). A sidebar do shell é
-  gerada de `menu_group` + `vision`.
+- **`sidebar_group`** — agrupadores da sidebar (`ds_label`, `nr_order`, `ie_collapsible`). A
+  sidebar do shell é gerada de `sidebar_group` + `vision`. Com `ie_collapsible`, o rótulo do
+  grupo vira botão com seta e nasce recolhido; sem ele, os itens ficam sempre à mostra.
 - **`app_user`** — usuário do sistema (`nm_user`, `cd_login` [CPF no gym], `ds_password_hash`,
   `ie_active`, campos de bloqueio progressivo). Pode apontar para uma tabela de negócio
   (`nr_seq_table_ref` + `nr_seq_record`, ex.: a `pessoa` do gym).
@@ -367,7 +368,7 @@ Gerado no boot, versionado por hash. Esqueleto:
     {
       "key": "exercicios", "title": "Exercícios", "table": "exercicio",
       "type": "GRID", "icon": "dumbbell", "iconColor": "#ff6a00",
-      "menuGroup": "Treinador", "order": 2,
+      "sidebarGroup": "Treinador", "order": 2,
       "allow": { "create": true, "update": true, "delete": true },
       "fields": [
         { "field": "nome", "grid": true, "form": true, "orderGrid": 1, "orderForm": 1 },
@@ -414,7 +415,7 @@ Observações:
   canônico** (regra já vigente no gym); tema do app aplicado em runtime a partir de
   `app.theme` do JSON (injeção das 4 variáveis num `<style>`); extras estruturais do shell
   num `theme.css` próprio do framework.
-- **Shell:** `.window` + `.sidebar` gerada de `menu_group`/`vision` (ícones em
+- **Shell:** `.window` + `.sidebar` gerada de `sidebar_group`/`vision` (ícones em
   `.sidebar-icon`), identidade do usuário (`.identity` + `.avatar`), `.tabbar--mobile`
   ≤640px, breadcrumb + stack de navegação para `MASTER_DETAIL` (modelo do integrator).
 - **VisionRenderer:** um componente por arquétipo. O GRID reusa os padrões consolidados do

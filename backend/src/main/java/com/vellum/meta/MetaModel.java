@@ -64,28 +64,29 @@ public class MetaModel {
             String parentKey, String parentFkColumn,
             boolean readOnly, boolean allowCreate, boolean allowUpdate, boolean allowDelete,
             String component, String icon, String iconColor,
-            String menuGroup, Integer menuOrder,
+            String sidebarGroup, Integer menuOrder,
             List<VisionColumn> columns, List<Restriction> restrictions,
             List<String> children, List<Handler> actions, List<Widget> widgets) {}
 
-    public record MenuGroup(String label, int order) {}
+    /** Agrupador da sidebar. collapsible: nasce fechado e abre com um clique. */
+    public record SidebarGroup(String label, int order, boolean collapsible) {}
 
     public final Map<String, Domain> domains;       // por nm_domain
     public final Map<String, Table> tables;         // por nm_table
     public final Map<String, Vision> visions;       // por nm_vision
     public final List<Handler> handlers;            // todos (ACTION já anexado às visões)
-    public final List<MenuGroup> menuGroups;
+    public final List<SidebarGroup> sidebarGroups;
     public final Map<String, String> config;        // app_config chave/valor
     public final String version;                    // hash do dicionário
 
     public MetaModel(Map<String, Domain> domains, Map<String, Table> tables,
                      Map<String, Vision> visions, List<Handler> handlers,
-                     List<MenuGroup> menuGroups, Map<String, String> config, String version) {
+                     List<SidebarGroup> sidebarGroups, Map<String, String> config, String version) {
         this.domains = domains;
         this.tables = tables;
         this.visions = visions;
         this.handlers = handlers;
-        this.menuGroups = menuGroups;
+        this.sidebarGroups = sidebarGroups;
         this.config = config;
         this.version = version;
     }

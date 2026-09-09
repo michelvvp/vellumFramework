@@ -100,14 +100,15 @@ public class MetadataLoader {
                     bool(t.get("ie_system")), columns));
         }
 
-        // ---------- grupos de menu ----------
-        Map<Long, String> menuGroupById = new HashMap<>();
-        List<MetaModel.MenuGroup> menuGroups = new ArrayList<>();
+        // ---------- grupos da sidebar ----------
+        Map<Long, String> sidebarGroupById = new HashMap<>();
+        List<MetaModel.SidebarGroup> sidebarGroups = new ArrayList<>();
         for (Map<String, Object> g : jdbc.queryForList(
-                "SELECT nr_sequence, ds_label, nr_order FROM `menu_group` WHERE ie_active ORDER BY nr_order, nr_sequence")) {
-            menuGroupById.put(((Number) g.get("nr_sequence")).longValue(), (String) g.get("ds_label"));
-            menuGroups.add(new MetaModel.MenuGroup((String) g.get("ds_label"),
-                    ((Number) g.get("nr_order")).intValue()));
+                "SELECT nr_sequence, ds_label, nr_order, ie_collapsible FROM `sidebar_group`"
+                        + " WHERE ie_active ORDER BY nr_order, nr_sequence")) {
+            sidebarGroupById.put(((Number) g.get("nr_sequence")).longValue(), (String) g.get("ds_label"));
+            sidebarGroups.add(new MetaModel.SidebarGroup((String) g.get("ds_label"),
+                    ((Number) g.get("nr_order")).intValue(), bool(g.get("ie_collapsible"))));
         }
 
         // ---------- funções (anexadas às visões depois) ----------
@@ -224,7 +225,7 @@ public class MetadataLoader {
                     }, id);
 
             Long parentId = numero(v.get("nr_seq_vision_parent"));
-            Long groupId = numero(v.get("nr_seq_menu_group"));
+            Long groupId = numero(v.get("nr_seq_sidebar_group"));
             visions.put(key, new MetaModel.Vision(id, key, (String) v.get("ds_title"),
                     tableName, tipo,
                     parentId == null ? null : visionKeyById.get(parentId),
@@ -233,7 +234,7 @@ public class MetadataLoader {
                     bool(v.get("ie_allow_update")), bool(v.get("ie_allow_delete")),
                     (String) v.get("nm_component"), (String) v.get("nm_icon"),
                     (String) v.get("ds_icon_color"),
-                    groupId == null ? null : menuGroupById.get(groupId),
+                    groupId == null ? null : sidebarGroupById.get(groupId),
                     inteiro(v.get("nr_order")),
                     vColumns, restrictions, children, actions, widgets));
         }
@@ -259,8 +260,8 @@ public class MetadataLoader {
             throw new IllegalStateException("Dicionário inconsistente:\n - " + String.join("\n - ", erros));
         }
 
-        return new MetaModel(domains, tables, visions, handlers, menuGroups, config,
-                hash(domains, tables, visions, handlers, menuGroups, config));
+        return new MetaModel(domains, tables, visions, handlers, sidebarGroups, config,
+                hash(domains, tables, visions, handlers, sidebarGroups, config));
     }
 
     /** Hash do conteúdo do dicionário — o front cacheia o /api/meta por ele. */

@@ -77,7 +77,7 @@ export interface VisionDef {
   component?: string
   icon?: string
   iconColor?: string
-  menuGroup?: string
+  sidebarGroup?: string
   order?: number
   readOnly?: boolean
   allow: { create: boolean; update: boolean; delete: boolean }
@@ -97,7 +97,7 @@ export interface Meta {
   domains: Record<string, DomainValue[]>
   tables: Record<string, TableDef>
   visions: VisionDef[]
-  menuGroups: { label: string; order: number }[]
+  sidebarGroups: { label: string; order: number; collapsible: boolean }[]
   user: {
     id: number
     name: string

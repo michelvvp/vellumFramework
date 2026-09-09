@@ -97,8 +97,9 @@ public class MetaService implements ApplicationRunner {
         }
         raiz.put("visions", visions);
 
-        raiz.put("menuGroups", m.menuGroups.stream()
-                .map(g -> mapa("label", g.label(), "order", g.order())).toList());
+        raiz.put("sidebarGroups", m.sidebarGroups.stream()
+                .map(g -> mapa("label", g.label(), "order", g.order(),
+                        "collapsible", g.collapsible())).toList());
         raiz.put("user", mapa("id", user.id(), "name", user.name(),
                 "login", user.login(), "functions", user.functions(),
                 "establishmentId", user.establishmentId(),
@@ -155,7 +156,7 @@ public class MetaService implements ApplicationRunner {
                 "parent", v.parentKey(), "parentFkColumn", v.parentFkColumn(),
                 "component", v.component(),
                 "icon", v.icon(), "iconColor", v.iconColor(),
-                "menuGroup", v.menuGroup(), "order", v.menuOrder(),
+                "sidebarGroup", v.sidebarGroup(), "order", v.menuOrder(),
                 "readOnly", v.readOnly(),
                 "allow", mapa(
                         "create", !v.readOnly() && v.allowCreate() && Permissions.pode(v, user, "CREATE"),
