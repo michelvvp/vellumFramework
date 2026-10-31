@@ -116,6 +116,16 @@
 }
 .sidebar-heading--toggle.is-open .sidebar-chevron { transform: rotate(180deg); }
 
+/* Item com 2+ visões: vira subnível (seta como a do grupo) e lista as visões
+   indentadas abaixo, alinhadas ao texto do item (padding 10px + tile 24px + gap 10px). */
+.sidebar-item--toggle .sidebar-chevron { margin-left: auto; }
+.sidebar-item--toggle.is-open .sidebar-chevron { transform: rotate(180deg); }
+.sidebar-item--sub {
+  padding-left: calc(10px + 24px + 10px);
+  font-size: var(--text-sm);
+}
+.sheet-grabber + h3 { margin-bottom: var(--space-md); }
+
 /* Breadcrumb do MASTER_DETAIL (stack de navegação pai → filho) */
 .breadcrumb {
   display: flex;
