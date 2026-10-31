@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { data } from '../api'
 import { useMeta } from '../meta'
-import { useIsMobile } from '../ui'
+import { useIsMobile } from '../components'
 import FieldInput from './FieldInput'
-import type { PopupOption } from '../ui'
+import type { PopupOption } from '../components'
 import type { Row, VisionDef } from '../types'
 
 /*

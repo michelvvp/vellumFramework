@@ -3,7 +3,7 @@ import { useAuth } from '../auth'
 import { api } from '../api'
 import { useMeta } from '../meta'
 import { icone } from '../icons'
-import { iniciais, useToast } from '../ui'
+import { iniciais, useToast } from '../components'
 import VisionRenderer from '../visions/VisionRenderer'
 import type { Row, VisionDef } from '../types'
 
