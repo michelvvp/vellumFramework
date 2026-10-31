@@ -70,12 +70,15 @@ public class MetaModel {
             String parentKey, String parentFkColumn,
             boolean readOnly, boolean allowCreate, boolean allowUpdate, boolean allowDelete,
             String component, String icon, String iconColor,
-            String sidebarGroup, Integer menuOrder,
             List<VisionColumn> columns, List<Restriction> restrictions,
             List<String> children, List<Handler> actions, List<Widget> widgets) {}
 
+    /** Entrada do menu: reúne uma ou mais visões (chaves, já em ordem). */
+    public record SidebarItem(long id, String label, String icon, String iconColor,
+                              int order, List<String> visions) {}
+
     /** Agrupador da sidebar. collapsible: nasce fechado e abre com um clique. */
-    public record SidebarGroup(String label, int order, boolean collapsible) {}
+    public record SidebarGroup(String label, int order, boolean collapsible, List<SidebarItem> items) {}
 
     public final Map<String, Domain> domains;       // por nm_domain
     public final Map<String, Table> tables;         // por nm_table

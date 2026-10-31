@@ -192,8 +192,8 @@ Uma `vision` é uma tela ligada a uma tabela. Uma mesma tabela pode ter várias 
 | `nm_component`    | varchar(120)  | Só para `CUSTOM`: nome do componente React registrado            |
 | `nm_icon`         | varchar(60)   | Ícone do menu (`.sidebar-icon`)                                  |
 | `ds_icon_color`   | varchar(20)   | Cor do tile do ícone                                             |
-| `nr_seq_sidebar_group` | FK → sidebar_group | Agrupamento na sidebar (seção 3.9)                     |
-| `nr_order`        | int           | Ordem no menu (null = não aparece no menu, só como filha)        |
+| `nr_seq_sidebar_item` | FK → sidebar_item | Entrada do menu a que a visão pertence (seção 3.9); null = fora do menu (só como filha ou por link) |
+| `nr_order_item`   | int           | Ordem da visão dentro do item da sidebar                         |
 
 **Arquétipos de renderização** (mapeiam os dois arquétipos do design-system):
 
@@ -355,8 +355,13 @@ qualquer outro objeto que não seja `ActionResult` segue como está (o front tra
 Sem estas o framework não fecha os dois casos de prova:
 
 - **`sidebar_group`** — agrupadores da sidebar (`ds_label`, `nr_order`, `ie_collapsible`). A
-  sidebar do shell é gerada de `sidebar_group` + `vision`. Com `ie_collapsible`, o rótulo do
-  grupo vira botão com seta e nasce recolhido; sem ele, os itens ficam sempre à mostra.
+  sidebar do shell tem três níveis: `sidebar_group` → `sidebar_item` → `vision`. Com
+  `ie_collapsible`, o rótulo do grupo vira botão com seta e nasce recolhido; sem ele, os
+  itens ficam sempre à mostra.
+- **`sidebar_item`** — entrada do menu dentro de um grupo (`nr_seq_sidebar_group`, `ds_label`,
+  `nm_icon`, `ds_icon_color`, `nr_order`). Um item reúne uma ou mais visões
+  (`vision.nr_seq_sidebar_item`, ordenadas por `vision.nr_order_item`). Apagar o grupo apaga
+  seus itens; apagar o item deixa as visões fora do menu.
 - **`app_user`** — usuário do sistema (`nm_user`, `cd_login` [CPF no gym], `ds_password_hash`,
   `ie_active`, campos de bloqueio progressivo). Pode apontar para uma tabela de negócio
   (`nr_seq_table_ref` + `nr_seq_record`, ex.: a `pessoa` do gym).
@@ -423,7 +428,6 @@ Gerado no boot, versionado por hash. Esqueleto:
     {
       "key": "exercicios", "title": "Exercícios", "table": "exercicio",
       "type": "GRID", "icon": "dumbbell", "iconColor": "#ff6a00",
-      "sidebarGroup": "Treinador", "order": 2,
       "allow": { "create": true, "update": true, "delete": true },
       "fields": [
         { "field": "nome", "grid": true, "form": true, "orderGrid": 1, "orderForm": 1 },
@@ -435,6 +439,13 @@ Gerado no boot, versionado por hash. Esqueleto:
       "restrictions": { "filters": [...], "validations": [...] }   // permissões ficam só no backend
     }
   ],
+  "sidebarGroups": [
+    { "label": "Treinador", "order": 1, "collapsible": false,
+      "items": [
+        { "id": 3, "label": "Exercícios", "icon": "dumbbell", "iconColor": "#ff6a00", "order": 2,
+          "visions": ["exercicios"] }       // chaves de `visions`, em ordem (nr_order_item)
+      ] }
+  ],
   "user": { "id": 1, "name": "Michel", "roles": ["ADMIN", "TREINADOR"] }  // via /api/me
 }
 ```
@@ -445,6 +456,9 @@ Observações:
   botões — nunca é a barreira de segurança.
 - O front só conhece visões que o usuário pode `READ` — o `/api/meta` já vem filtrado por
   papel.
+- **Sidebar:** `sidebarGroups[].items[].visions` traz só as visões que o usuário pode ler.
+  Item sem visão visível sai do payload; grupo sem item também. A visão não carrega mais
+  grupo nem ordem de menu (`icon`/`iconColor` continuam, usados no cabeçalho da tela).
 
 ---
 
@@ -470,7 +484,7 @@ Observações:
   canônico** (regra já vigente no gym); tema do app aplicado em runtime a partir de
   `app.theme` do JSON (injeção das 4 variáveis num `<style>`); extras estruturais do shell
   num `theme.css` próprio do framework.
-- **Shell:** `.window` + `.sidebar` gerada de `sidebar_group`/`vision` (ícones em
+- **Shell:** `.window` + `.sidebar` gerada de `sidebar_group`/`sidebar_item`/`vision` (ícones em
   `.sidebar-icon`), identidade do usuário (`.identity` + `.avatar`), `.tabbar--mobile`
   ≤640px, breadcrumb + stack de navegação para `MASTER_DETAIL` (modelo do integrator).
 - **VisionRenderer:** um componente por arquétipo. O GRID reusa os padrões consolidados do

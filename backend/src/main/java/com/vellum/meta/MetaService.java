@@ -90,14 +90,33 @@ public class MetaService implements ApplicationRunner {
         }
         raiz.put("visions", visions);
 
-        raiz.put("sidebarGroups", m.sidebarGroups.stream()
-                .map(g -> mapa("label", g.label(), "order", g.order(),
-                        "collapsible", g.collapsible())).toList());
+        raiz.put("sidebarGroups", sidebarJson(m, user));
         raiz.put("user", mapa("id", user.id(), "name", user.name(),
                 "login", user.login(), "functions", user.functions(),
                 "establishmentId", user.establishmentId(),
                 "establishmentName", user.establishmentName()));
         return raiz;
+    }
+
+    /** Só entram visões legíveis pelo usuário; item sem visão visível e grupo sem item saem. */
+    private static List<Map<String, Object>> sidebarJson(MetaModel m, CurrentUser user) {
+        List<Map<String, Object>> grupos = new ArrayList<>();
+        for (MetaModel.SidebarGroup g : m.sidebarGroups) {
+            List<Map<String, Object>> itens = new ArrayList<>();
+            for (MetaModel.SidebarItem i : g.items()) {
+                List<String> visoes = i.visions().stream().filter(k -> {
+                    MetaModel.Vision v = m.visions.get(k);
+                    return v != null && Permissions.podeLer(v, user);
+                }).toList();
+                if (visoes.isEmpty()) continue;
+                itens.add(mapa("id", i.id(), "label", i.label(), "icon", i.icon(),
+                        "iconColor", i.iconColor(), "order", i.order(), "visions", visoes));
+            }
+            if (itens.isEmpty()) continue;
+            grupos.add(mapa("label", g.label(), "order", g.order(),
+                    "collapsible", g.collapsible(), "items", itens));
+        }
+        return grupos;
     }
 
     private Map<String, Object> visaoJson(MetaModel m, MetaModel.Vision v, CurrentUser user) {
@@ -155,7 +174,6 @@ public class MetaService implements ApplicationRunner {
                 "parent", v.parentKey(), "parentFkColumn", v.parentFkColumn(),
                 "component", v.component(),
                 "icon", v.icon(), "iconColor", v.iconColor(),
-                "sidebarGroup", v.sidebarGroup(), "order", v.menuOrder(),
                 "readOnly", v.readOnly(),
                 "allow", mapa(
                         "create", !v.readOnly() && v.allowCreate() && Permissions.pode(v, user, "CREATE"),

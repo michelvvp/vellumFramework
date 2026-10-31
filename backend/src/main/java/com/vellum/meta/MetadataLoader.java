@@ -100,17 +100,6 @@ public class MetadataLoader {
                     bool(t.get("ie_system")), columns));
         }
 
-        // ---------- grupos da sidebar ----------
-        Map<Long, String> sidebarGroupById = new HashMap<>();
-        List<MetaModel.SidebarGroup> sidebarGroups = new ArrayList<>();
-        for (Map<String, Object> g : jdbc.queryForList(
-                "SELECT nr_sequence, ds_label, nr_order, ie_collapsible FROM `sidebar_group`"
-                        + " WHERE ie_active ORDER BY nr_order, nr_sequence")) {
-            sidebarGroupById.put(((Number) g.get("nr_sequence")).longValue(), (String) g.get("ds_label"));
-            sidebarGroups.add(new MetaModel.SidebarGroup((String) g.get("ds_label"),
-                    ((Number) g.get("nr_order")).intValue(), bool(g.get("ie_collapsible"))));
-        }
-
         // ---------- funções (anexadas às visões depois) ----------
         Map<Long, String> visionKeyById = new HashMap<>();
         for (Map<String, Object> v : jdbc.queryForList(
@@ -161,7 +150,7 @@ public class MetadataLoader {
         // ---------- visões ----------
         Map<String, MetaModel.Vision> visions = new LinkedHashMap<>();
         List<Map<String, Object>> visRows = jdbc.queryForList(
-                "SELECT * FROM `vision` WHERE ie_active ORDER BY nr_order IS NULL, nr_order, nr_sequence");
+                "SELECT * FROM `vision` WHERE ie_active ORDER BY nr_sequence");
         for (Map<String, Object> v : visRows) {
             long id = ((Number) v.get("nr_sequence")).longValue();
             String key = (String) v.get("nm_vision");
@@ -227,7 +216,7 @@ public class MetadataLoader {
 
             List<String> children = jdbc.queryForList(
                     "SELECT nm_vision FROM `vision` WHERE nr_seq_vision_parent = ? AND ie_active " +
-                    "ORDER BY nr_order IS NULL, nr_order, nr_sequence", String.class, id);
+                    "ORDER BY nr_sequence", String.class, id);
 
             List<MetaModel.Handler> actions = handlers.stream()
                     .filter(h -> "ACTION".equals(h.type()) && key.equals(h.visionKey()))
@@ -250,7 +239,6 @@ public class MetadataLoader {
                     }, id);
 
             Long parentId = numero(v.get("nr_seq_vision_parent"));
-            Long groupId = numero(v.get("nr_seq_sidebar_group"));
             visions.put(key, new MetaModel.Vision(id, key, (String) v.get("ds_title"),
                     tableName, tipo,
                     parentId == null ? null : visionKeyById.get(parentId),
@@ -259,9 +247,29 @@ public class MetadataLoader {
                     bool(v.get("ie_allow_update")), bool(v.get("ie_allow_delete")),
                     (String) v.get("nm_component"), (String) v.get("nm_icon"),
                     (String) v.get("ds_icon_color"),
-                    groupId == null ? null : sidebarGroupById.get(groupId),
-                    inteiro(v.get("nr_order")),
                     vColumns, restrictions, children, actions, widgets));
+        }
+
+        // ---------- sidebar: grupo > item > visões ----------
+        List<MetaModel.SidebarGroup> sidebarGroups = new ArrayList<>();
+        for (Map<String, Object> g : jdbc.queryForList(
+                "SELECT nr_sequence, ds_label, nr_order, ie_collapsible FROM `sidebar_group`"
+                        + " WHERE ie_active ORDER BY nr_order, nr_sequence")) {
+            long groupId = ((Number) g.get("nr_sequence")).longValue();
+            List<MetaModel.SidebarItem> items = new ArrayList<>();
+            for (Map<String, Object> it : jdbc.queryForList(
+                    "SELECT nr_sequence, ds_label, nm_icon, ds_icon_color, nr_order FROM `sidebar_item`"
+                            + " WHERE nr_seq_sidebar_group = ? AND ie_active ORDER BY nr_order, nr_sequence", groupId)) {
+                long itemId = ((Number) it.get("nr_sequence")).longValue();
+                List<String> keys = jdbc.queryForList(
+                        "SELECT nm_vision FROM `vision` WHERE nr_seq_sidebar_item = ? AND ie_active"
+                                + " ORDER BY nr_order_item IS NULL, nr_order_item, nr_sequence", String.class, itemId);
+                items.add(new MetaModel.SidebarItem(itemId, (String) it.get("ds_label"),
+                        (String) it.get("nm_icon"), (String) it.get("ds_icon_color"),
+                        ((Number) it.get("nr_order")).intValue(), keys));
+            }
+            sidebarGroups.add(new MetaModel.SidebarGroup((String) g.get("ds_label"),
+                    ((Number) g.get("nr_order")).intValue(), bool(g.get("ie_collapsible")), items));
         }
 
         // ciclo de visões (pai→filho) derruba o boot
