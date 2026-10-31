@@ -196,8 +196,7 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
 
   const temFilhosOuAcoes = vision.children.length > 0
     || vision.actions.some(a => a.placement === 'ROW')
-  const temMenuLinha = temFilhosOuAcoes || vision.allow.update || vision.allow.delete
-  // desktop: editar/excluir viram ícones ao lado do menu; cada botão ocupa 36px
+  // editar/excluir são ícones ao lado do menu (tabela e lista)
   const botoesDesktop = (temFilhosOuAcoes ? 1 : 0) + (vision.allow.update ? 1 : 0) + (vision.allow.delete ? 1 : 0)
 
   function celula(vf: VisionColumnDef, row: Row) {
@@ -212,8 +211,8 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
     return partes.join(' · ') || `#${row.nr_sequence}`
   }
 
-  /* menu de contexto da linha (filhos, ações e, no mobile, editar/excluir) */
-  function menuLinha(row: Row, comEditarExcluir = true) {
+  /* menu de contexto da linha: só filhos e ações de linha */
+  function menuLinha(row: Row) {
     return (
       <span className="row-menu" onPointerDown={e => e.stopPropagation()}>
         <button className="icon-btn" type="button" data-tooltip="Opções"
@@ -251,31 +250,17 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
               recordId={row.nr_sequence} onDone={() => carregar()}
               onBusy={ocupada => { setAcaoOcupada(ocupada); if (!ocupada) setMenuAberto(null) }} />
           ))}
-          {comEditarExcluir && temFilhosOuAcoes
-            && (vision.allow.update || vision.allow.delete) && <div className="menu-divider"></div>}
-          {comEditarExcluir && vision.allow.update && (
-            <button className="menu-item" type="button" role="menuitem"
-              onClick={() => { setMenuAberto(null); setEditando(row) }}>
-              <span className="menu-check">✎</span>Editar
-            </button>
-          )}
-          {comEditarExcluir && vision.allow.delete && (
-            <button className="menu-item" type="button" role="menuitem"
-              onClick={() => { setMenuAberto(null); setExcluindo(row) }}>
-              <span className="menu-check">✕</span>Excluir
-            </button>
-          )}
         </div>, document.body)}
       </span>
     )
   }
 
-  /* desktop: menu (se houver filhos/ações) + ícones de editar e excluir */
+  /* menu (se houver filhos/ações) + ícones de editar e excluir */
   function botoesLinha(row: Row) {
     const rotulo = rotuloLinha(row)
     return (
       <span className="row" style={{ gap: 0, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-        {temFilhosOuAcoes && menuLinha(row, false)}
+        {temFilhosOuAcoes && menuLinha(row)}
         {vision.allow.update && (
           <button className="icon-btn" type="button" data-tooltip="Editar" aria-label={`Editar ${rotulo}`}
             onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEditando(row) }}>
@@ -349,7 +334,7 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
             </span>
             <span className="list-trailing">
               {badgeLinha(colunas, tabela.columns, row, meta.domains)}
-              {temMenuLinha && menuLinha(row)}
+              {botoesDesktop > 0 && botoesLinha(row)}
             </span>
           </div>
         )
