@@ -9,6 +9,10 @@ import type { Meta, VisionDef } from './types'
  * framework de graça e compõem o catálogo (components/) — nunca CSS novo.
  *
  *   register('treinar', TreinarPage)
+ *
+ * Ações da visão (botões, parâmetros, toast e efeitos) usam o catálogo: renderize
+ * `<ActionButton action visionKey recordId onDone />` ou, sem botão, chame
+ * `useAction()` — a mesma lógica dos GridVision/FormModal, sem reescrever fetch.
  */
 export interface CustomProps {
   vision: VisionDef

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { data } from '../api'
 import { useMeta } from '../meta'
-import { useIsMobile } from '../components'
+import { ActionButton, useIsMobile } from '../components'
 import FieldInput from './FieldInput'
 import type { PopupOption } from '../components'
 import type { Row, VisionDef } from '../types'
@@ -12,12 +12,13 @@ import type { Row, VisionDef } from '../types'
  * montado a partir de vision_field. Erros de validação do backend chegam
  * estruturados ({field, code, message}) e caem no .field-error de cada campo.
  */
-export default function FormModal({ vision, registro, parentId, onFechar, onSalvo }: {
+export default function FormModal({ vision, registro, parentId, onFechar, onSalvo, onAcao }: {
   vision: VisionDef
   registro: Row | null   // null = fechado; {} = novo; com nr_sequence = edição
   parentId?: number
   onFechar: () => void
   onSalvo: () => void
+  onAcao?: () => void   // uma ação ROW terminou com RELOAD
 }) {
   const { meta } = useMeta()
   const mobile = useIsMobile()
@@ -30,6 +31,8 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
     // o FK do pai é preenchido automaticamente quando se navega a partir dele
     .filter(f => !(vision.parentFkColumn === f.column && parentId !== undefined))
     .sort((a, b) => (a.orderForm ?? 999) - (b.orderForm ?? 999)), [vision, parentId])
+
+  const acoes = vision.actions.filter(a => a.placement === 'ROW')
 
   const [values, setValues] = useState<Row>({})
   const [erros, setErros] = useState<Record<string, string>>({})
@@ -124,7 +127,7 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
 
   return createPortal(
     <div className={`modal-overlay${mobile ? ' modal-overlay--sheet' : ''}`} hidden={!aberto} onClick={onFechar}
-      onKeyDown={e => { if (e.key === 'Escape') onFechar() }}>
+      onKeyDown={e => { if (e.key === 'Escape' && dialogo.current?.contains(e.target as Node)) onFechar() }}>
       <div className={`modal${mobile ? ' modal--sheet' : ''}`} role="dialog" aria-modal="true"
         aria-labelledby="form-titulo" tabIndex={-1} ref={dialogo} onClick={e => e.stopPropagation()}>
         {mobile && <div className="sheet-grabber"></div>}
@@ -148,6 +151,14 @@ export default function FormModal({ vision, registro, parentId, onFechar, onSalv
                   disabled={vf.readOnly || !!def.computed} />
               )
             })}
+            {edicao && acoes.length > 0 && (
+              <div className="row" style={{ flexWrap: 'wrap' }}>
+                {acoes.map(a => (
+                  <ActionButton key={a.name} action={a} visionKey={vision.key}
+                    recordId={registro!.nr_sequence} onDone={() => onAcao?.()} />
+                ))}
+              </div>
+            )}
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn btn--ghost" type="button" onClick={onFechar}>Cancelar</button>
               <button className="btn" type="submit" disabled={salvando}>
