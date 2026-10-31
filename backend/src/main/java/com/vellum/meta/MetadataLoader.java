@@ -120,6 +120,31 @@ public class MetadataLoader {
 
         List<MetaModel.Handler> handlers = new ArrayList<>();
         for (Map<String, Object> f : jdbc.queryForList("SELECT * FROM `handler` WHERE ie_active")) {
+            long handlerId = ((Number) f.get("nr_sequence")).longValue();
+            String nmHandler = (String) f.get("nm_handler");
+            List<MetaModel.Column> params = new ArrayList<>();
+            for (Map<String, Object> p : jdbc.queryForList(
+                    "SELECT * FROM `handler_param` WHERE nr_seq_handler = ? AND ie_active " +
+                    "ORDER BY nr_order, nr_sequence", handlerId)) {
+                String tipo = (String) p.get("ie_type");
+                Long domId = numero(p.get("nr_seq_domain"));
+                Long refId = numero(p.get("nr_seq_table_ref"));
+                String nmParam = (String) p.get("nm_param");
+                if ("DOMAIN".equals(tipo) && (domId == null || !domainNameById.containsKey(domId)))
+                    erros.add("handler " + nmHandler + ", parâmetro " + nmParam + ": tipo DOMAIN sem domínio válido");
+                if ("ENTITY".equals(tipo) && (refId == null || !tableNameById.containsKey(refId)))
+                    erros.add("handler " + nmHandler + ", parâmetro " + nmParam
+                            + ": tipo ENTITY sem tabela referenciada válida");
+                params.add(new MetaModel.Column(
+                        ((Number) p.get("nr_sequence")).longValue(), nmParam,
+                        (String) p.get("ds_label"), tipo,
+                        domId == null ? null : domainNameById.get(domId),
+                        refId == null ? null : tableNameById.get(refId),
+                        bool(p.get("ie_required")), false,
+                        inteiro(p.get("qt_size")), null, null, null, null,
+                        (String) p.get("vl_default"), (String) p.get("ds_hint"), null,
+                        p.get("nr_order") == null ? 0 : ((Number) p.get("nr_order")).intValue()));
+            }
             Long visId = numero(f.get("nr_seq_vision"));
             Long tabId = numero(f.get("nr_seq_table"));
             handlers.add(new MetaModel.Handler(
@@ -130,7 +155,7 @@ public class MetadataLoader {
                     tabId == null ? null : tableNameById.get(tabId),
                     (String) f.get("ie_moment"), (String) f.get("ie_placement"),
                     (String) f.get("nm_bean"), bool(f.get("ie_confirm")),
-                    (String) f.get("ds_success_msg"), (String) f.get("cd_function")));
+                    (String) f.get("ds_success_msg"), (String) f.get("cd_function"), params));
         }
 
         // ---------- visões ----------

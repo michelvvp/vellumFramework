@@ -76,14 +76,7 @@ public class MetaService implements ApplicationRunner {
         Map<String, Object> tables = new LinkedHashMap<>();
         m.tables.forEach((nome, t) -> {
             Map<String, Object> fields = new LinkedHashMap<>();
-            t.columns().forEach((fn, f) -> fields.put(fn, mapa(
-                    "type", f.type(), "label", f.label(),
-                    "domain", f.domain(), "refTable", f.refTable(),
-                    "required", f.required(), "unique", f.unique(),
-                    "size", f.size(), "scale", f.scale(),
-                    "min", f.min(), "max", f.max(),
-                    "default", f.defaultValue(), "hint", f.hint(),
-                    "computed", f.computed() ? true : null)));
+            t.columns().forEach((fn, f) -> fields.put(fn, campoJson(f)));
             tables.put(nome, mapa(
                     "label", t.label(), "labelPlural", t.labelPlural(),
                     "labelFields", t.labelFields(), "columns", fields));
@@ -127,7 +120,13 @@ public class MetaService implements ApplicationRunner {
                 .filter(a -> a.function() == null || user.can(a.function()))
                 .map(a -> mapa("name", a.name(), "label", a.label(),
                         "placement", a.placement(), "confirm", a.confirm(),
-                        "successMsg", a.successMsg()))
+                        "successMsg", a.successMsg(),
+                        "params", a.params().stream().map(p -> {
+                            Map<String, Object> campo = new LinkedHashMap<>();
+                            campo.put("name", p.name());
+                            campo.putAll(campoJson(p));
+                            return campo;
+                        }).toList()))
                 .toList();
 
         // filhas que o usuário pode ler (o menu de contexto do pai vem daqui)
@@ -164,6 +163,18 @@ public class MetaService implements ApplicationRunner {
                         "delete", !v.readOnly() && v.allowDelete() && Permissions.pode(v, user, "DELETE")),
                 "columns", fields, "children", children, "actions", actions,
                 "widgets", widgets, "validations", validations);
+    }
+
+    /** Definição de um campo (coluna de tabela ou parâmetro de ação), igual para o front reaproveitar. */
+    private static Map<String, Object> campoJson(MetaModel.Column f) {
+        return mapa(
+                "type", f.type(), "label", f.label(),
+                "domain", f.domain(), "refTable", f.refTable(),
+                "required", f.required(), "unique", f.unique(),
+                "size", f.size(), "scale", f.scale(),
+                "min", f.min(), "max", f.max(),
+                "default", f.defaultValue(), "hint", f.hint(),
+                "computed", f.computed() ? true : null);
     }
 
     /** LinkedHashMap tolerante a null (Map.of não aceita) — nulls ficam de fora do JSON. */

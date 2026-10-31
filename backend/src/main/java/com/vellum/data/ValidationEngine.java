@@ -1,11 +1,17 @@
 package com.vellum.data;
 
+import com.vellum.handler.HandlerRegistry;
+import com.vellum.handler.ParamsInvalidosException;
 import com.vellum.meta.MetaModel;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,9 +24,78 @@ import java.util.Map;
 public class ValidationEngine {
 
     private final JdbcTemplate jdbc;
+    private final HandlerRegistry handlers;
 
-    public ValidationEngine(JdbcTemplate jdbc) {
+    public ValidationEngine(JdbcTemplate jdbc, HandlerRegistry handlers) {
         this.jdbc = jdbc;
+        this.handlers = handlers;
+    }
+
+    /**
+     * Valida os parâmetros enviados a uma ação contra os `handler_param` dela:
+     * tipo, obrigatório, tamanho e domínio. Erro sai como ParamsInvalidosException
+     * (400), no mesmo formato por campo do CRUD.
+     */
+    public void validarParams(MetaModel.Handler handler, Map<String, Object> params) {
+        Map<String, MetaModel.Column> campos = new LinkedHashMap<>();
+        for (MetaModel.Column p : handler.params()) campos.put(p.name(), p);
+
+        List<ValidationException.FieldError> erros = new ArrayList<>();
+        Map<String, Object> linha = new LinkedHashMap<>();
+        for (MetaModel.Column p : campos.values()) {
+            Object v = params.get(p.name());
+            if (v == null || (v instanceof String s && s.isBlank())) {
+                // valor ausente cai no padrão cadastrado, como no CRUD
+                if (v == null && p.defaultValue() != null) v = p.defaultValue();
+                else continue;
+            }
+            String erroTipo = erroDeTipo(p, v);
+            if (erroTipo != null) {
+                erros.add(new ValidationException.FieldError(p.name(), "type", p.label() + " " + erroTipo));
+                continue;
+            }
+            linha.put(p.name(), v);
+        }
+
+        MetaModel.Table sintetica = new MetaModel.Table(0, handler.name(), handler.label(), handler.label(),
+                List.of(), false, false, true, campos);
+        try {
+            validar(sintetica, null, linha, null);
+        } catch (ValidationException e) {
+            erros.addAll(e.errors());
+        }
+        if (!erros.isEmpty()) throw new ParamsInvalidosException(erros);
+    }
+
+    /** null quando o valor serve para o tipo do campo. */
+    private static String erroDeTipo(MetaModel.Column f, Object v) {
+        String s = String.valueOf(v).trim();
+        try {
+            switch (f.type()) {
+                case "INTEGER", "ENTITY" -> { if (!(v instanceof Number)) Long.parseLong(s); }
+                case "DECIMAL" -> { if (!(v instanceof Number)) new BigDecimal(s); }
+                case "BOOLEAN" -> {
+                    if (!(v instanceof Boolean) && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false")
+                            && !s.equals("1") && !s.equals("0")) return "deve ser verdadeiro ou falso";
+                }
+                case "DATE" -> LocalDate.parse(s);
+                case "DATETIME" -> LocalDateTime.parse(s.replace(' ', 'T'));
+                case "TIME" -> LocalTime.parse(s);
+                default -> { }
+            }
+            return null;
+        } catch (RuntimeException e) {
+            return "em formato inválido";
+        }
+    }
+
+    /** Tipo HANDLER_BEAN é string, mas só aceita bean que implemente Handler. */
+    private void validarBean(MetaModel.Vision vision, MetaModel.Column f, String v,
+                             List<ValidationException.FieldError> erros) {
+        if (!handlers.existeBean(v)) {
+            erros.add(new ValidationException.FieldError(f.name(), "bean",
+                    rotulo(vision, f) + ": não existe bean de handler '" + v + "' no backend"));
+        }
     }
 
     /**
@@ -63,6 +138,9 @@ public class ValidationEngine {
             if (f.unique() && duplicado(table, f, v, id)) {
                 erros.add(new ValidationException.FieldError(f.name(), "unique",
                         "já existe um registro com este " + rotulo(vision, f).toLowerCase()));
+            }
+            if ("HANDLER_BEAN".equals(f.type()) && v instanceof String s) {
+                validarBean(vision, f, s.trim(), erros);
             }
             if (f.domain() != null && v instanceof String s && !s.isBlank() && !valorDeDominio(vision, f, s)) {
                 erros.add(new ValidationException.FieldError(f.name(), "domain",
