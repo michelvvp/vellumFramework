@@ -3,7 +3,7 @@ import { useAuth } from '../auth'
 import { api } from '../api'
 import { useMeta } from '../meta'
 import { icone } from '../icons'
-import { iniciais, NavegacaoContext, useToast } from '../components'
+import { iniciais, NavegacaoContext, useBarraRetratil, useToast } from '../components'
 import VisionRenderer from '../visions/VisionRenderer'
 import type { Row, VisionDef } from '../types'
 
@@ -44,6 +44,8 @@ export default function Shell() {
   }, [meta])
 
   const primeira = menu[0]?.visions[0]?.key
+
+  const barraCompacta = useBarraRetratil()
 
   /* Grupo recolhível nasce fechado (é o que o cadastro pede); só o grupo da
      tela aberta no boot começa aberto, senão o item ativo ficaria escondido. */
@@ -177,7 +179,7 @@ export default function Shell() {
         )}
       </div>
 
-      <nav className="tabbar tabbar--mobile" aria-label="Navegação principal">
+      <nav className={`tabbar tabbar--mobile${barraCompacta ? ' is-compacta' : ''}`} aria-label="Navegação principal">
         {itensTabbar.map(v => (
           <button key={v.key} type="button"
             className={`tabbar-item${stack[0]?.key === v.key ? ' is-active' : ''}`}
