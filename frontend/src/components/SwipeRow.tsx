@@ -1,6 +1,7 @@
 import { useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 
 const OPEN_W = 72
+const THRESHOLD = 10
 
 /*
  * Padrão mobile do design system para excluir: arrastar o conteúdo para a
@@ -15,36 +16,59 @@ export function SwipeRow({ children, onDelete, ariaLabel, className = '' }: {
   const itemRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const actionRef = useRef<HTMLDivElement>(null)
-  const drag = useRef({ startX: 0, base: 0, dragging: false })
+  // idle: sem gesto; pending: ponteiro baixo, direção indefinida; drag: arrasto horizontal; ignored: gesto vertical, deixa a rolagem nativa
+  const drag = useRef({ startX: 0, startY: 0, base: 0, last: 0, phase: 'idle' as 'idle' | 'pending' | 'drag' | 'ignored' })
+
+  function reset() {
+    contentRef.current!.style.transition = ''
+    contentRef.current!.style.transform = ''
+    actionRef.current!.style.transition = ''
+    actionRef.current!.style.opacity = ''
+    actionRef.current!.style.transform = ''
+  }
 
   function onPointerDown(e: ReactPointerEvent) {
     if ((e.target as HTMLElement).closest('button, a, input, select, textarea')) return
-    const item = itemRef.current!
-    drag.current = { startX: e.clientX, base: item.classList.contains('is-open') ? -OPEN_W : 0, dragging: true }
-    contentRef.current!.setPointerCapture(e.pointerId)
-    contentRef.current!.style.transition = 'none'
-    actionRef.current!.style.transition = 'none'
+    const base = itemRef.current!.classList.contains('is-open') ? -OPEN_W : 0
+    drag.current = { startX: e.clientX, startY: e.clientY, base, last: base, phase: 'pending' }
   }
 
   function onPointerMove(e: ReactPointerEvent) {
-    if (!drag.current.dragging) return
-    const dx = Math.min(0, Math.max(-OPEN_W, drag.current.base + (e.clientX - drag.current.startX)))
+    const d = drag.current
+    if (d.phase === 'idle' || d.phase === 'ignored') return
+    const mx = e.clientX - d.startX
+    const my = e.clientY - d.startY
+    if (d.phase === 'pending') {
+      if (Math.max(Math.abs(mx), Math.abs(my)) < THRESHOLD) return
+      if (Math.abs(mx) <= Math.abs(my)) { d.phase = 'ignored'; return }
+      d.phase = 'drag'
+      contentRef.current!.setPointerCapture(e.pointerId)
+      contentRef.current!.style.transition = 'none'
+      actionRef.current!.style.transition = 'none'
+    }
+    const dx = Math.min(0, Math.max(-OPEN_W, d.base + mx))
+    d.last = d.base + mx
     contentRef.current!.style.transform = `translateX(${dx}px)`
     const p = -dx / OPEN_W
     actionRef.current!.style.opacity = String(p)
     actionRef.current!.style.transform = `translateY(-50%) scale(${0.4 + 0.6 * p})`
   }
 
-  function release(e: ReactPointerEvent) {
-    if (!drag.current.dragging) return
-    const dx = drag.current.base + (e.clientX - drag.current.startX)
-    drag.current.dragging = false
-    contentRef.current!.style.transition = ''
-    contentRef.current!.style.transform = ''
-    actionRef.current!.style.transition = ''
-    actionRef.current!.style.opacity = ''
-    actionRef.current!.style.transform = ''
+  function onPointerUp(e: ReactPointerEvent) {
+    const d = drag.current
+    const wasDrag = d.phase === 'drag'
+    d.phase = 'idle'
+    if (!wasDrag) return
+    const dx = d.base + (e.clientX - d.startX)
+    reset()
     itemRef.current!.classList.toggle('is-open', dx < -OPEN_W / 2)
+  }
+
+  // cancel (ex.: navegador assumiu a rolagem): clientX não vale; mantém o estado anterior
+  function onPointerCancel() {
+    const wasDrag = drag.current.phase === 'drag'
+    drag.current.phase = 'idle'
+    if (wasDrag) reset()
   }
 
   return (
@@ -58,7 +82,7 @@ export function SwipeRow({ children, onDelete, ariaLabel, className = '' }: {
       </div>
       <div className="swipe-content" ref={contentRef}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-        onPointerUp={release} onPointerCancel={release}>
+        onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
         {children}
       </div>
     </div>
