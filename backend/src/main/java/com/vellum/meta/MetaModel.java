@@ -53,11 +53,17 @@ public class MetaModel {
             String groupBy, String groupColumn, boolean usePeriod,
             Integer limit, int order) {}
 
-    /** Código Java plugado no runtime (tabela `handler`): ACTION, HOOK, AUTH, JOB, ENDPOINT. */
+    /**
+     * Código Java plugado no runtime (tabela `handler`): ACTION, HOOK, AUTH, JOB, ENDPOINT.
+     *
+     * @param params parâmetros cadastrados (`handler_param`) em ordem, no mesmo modelo de
+     *               campo de tabela; vazio quando o handler não pede nada
+     */
     public record Handler(
             long id, String name, String label, String type,
             String visionKey, String table, String moment, String placement,
-            String bean, boolean confirm, String successMsg, String function) {}
+            String bean, boolean confirm, String successMsg, String function,
+            List<Column> params) {}
 
     public record Vision(
             long id, String key, String title, String table, String type,

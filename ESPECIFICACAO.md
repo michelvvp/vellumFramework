@@ -18,7 +18,8 @@
 > variáveis de contexto passaram a ser `:person_id`, `:person_record`,
 > `:establishment_id`. Novas tabelas `index` e `constraint` descrevem o schema
 > físico, com geração de DDL prevista. O README tem o modelo de acesso
-> atualizado; esta especificação ainda descreve o desenho original.
+> atualizado; a seção 3.8 (handlers e ações) está em dia, o restante desta especificação
+> ainda descreve o desenho original.
 
 ---
 
@@ -62,7 +63,7 @@
 │  │ tables              │         │ /api/data/{table} → CRUD genérico        │        │
 │  │ table_field         │         │ ValidationEngine  (regras declarativas)  │        │
 │  │ vision              │         │ RestrictionEngine (filtros + permissões) │        │
-│  │ vision_field        │         │ FunctionRegistry  (ações custom em Java) │        │
+│  │ vision_field        │         │ HandlerRegistry   (ações custom em Java) │        │
 │  │ vision_restriction  │         │ AuthService (login, token, papéis)       │        │
 │  │ function            │         └──────────────────────────────────────────┘        │
 │  │ (+ seção 3.9)       │                                                             │
@@ -274,26 +275,80 @@ Permissões complexas por vínculo (o `RelacionamentoService.exigirAcesso` do gy
 expressáveis em linhas — usam uma `function` de autorização plugável (seção 3.8),
 referenciada por `PERMISSION` com `vl_value = nome_da_function`.
 
-### 3.8 `function` — funções e ações
+### 3.8 `handler` — ações, hooks e endpoints
 
-Registra comportos que vão além do CRUD: ações de tela, endpoints custom, hooks e jobs.
+> Esta seção está em dia com o código (tabela `handler`, ex-`function`).
+
+Registra comportamentos que vão além do CRUD: ações de tela, endpoints custom, hooks e jobs.
 
 | Campo             | Tipo          | Descrição                                                     |
 |-------------------|---------------|----------------------------------------------------------------|
-| `nm_function`     | varchar(60)   | Chave única (ex.: `integrar`, `desbloquear_login`)             |
+| `nm_handler`      | varchar(60)   | Chave única (ex.: `integrar`, `convidar`)                      |
 | `ds_label`        | varchar(120)  | Rótulo do botão/ação                                           |
-| `ie_function_type`| domínio `FUNCTION_TYPE` | `ACTION` (botão em visão), `HOOK` (before/after create/update/delete), `AUTH` (autorização custom), `JOB` (agendada), `ENDPOINT` (API pura, ex.: `/integrate`) |
+| `ie_handler_type` | domínio       | `ACTION` (botão em visão), `HOOK` (before/after create/update/delete), `AUTH` (autorização custom), `JOB` (agendada), `ENDPOINT` (API pura, ex.: `/integrate`) |
 | `nr_seq_vision`   | FK → vision   | Onde aparece (para `ACTION`) — em linha ou no header           |
 | `ie_placement`    | domínio       | `ROW` (menu de contexto/linha) ou `HEADER`                     |
-| `nm_handler`      | varchar(120)  | Nome do bean/handler Java registrado no `FunctionRegistry`     |
+| `nm_bean`         | `HANDLER_BEAN`| Nome do bean Spring que implementa `Handler`                   |
 | `ie_confirm`      | boolean       | Exige `ConfirmModal` antes de executar                         |
 | `ds_success_msg`  | varchar(255)  | Toast de sucesso                                               |
-| `nm_role`         | varchar(60)   | Papel mínimo para executar                                     |
+| `cd_function`     | varchar(60)   | Função (permissão) exigida para executar                       |
 
-O front chama `POST /api/function/{nm_function}` com `{ visionKey, recordId?, params? }`.
-A implementação é **código Java registrado** (interface `FunctionHandler`) — o metadado
-diz *onde e quando*, o código diz *o quê*. É aqui que vivem o motor do integrator
-(`ENDPOINT integrar`) e regras como o bloqueio progressivo de login do gym (`HOOK`).
+A implementação é **código Java** (interface `com.vellum.handler.Handler`, um `@Component`
+cujo nome de bean é o `nm_bean`) — o metadado diz *onde e quando*, o código diz *o quê*.
+É aqui que vivem o motor do integrator (`ENDPOINT integrar`) e regras como o bloqueio
+progressivo de login do gym (`HOOK`).
+
+**Tipo de campo `HANDLER_BEAN`.** No banco é string (`VARCHAR`); o backend a trata como
+string em toda coerção e validação, e o front a renderiza como popup dos beans existentes.
+Ao criar/alterar um `handler`, `nm_bean` que não corresponda a um bean `Handler` do backend
+é recusado com erro de validação no campo `nm_bean`. A lista vem de
+`GET /api/handler-beans` → `["nomeDoBean", ...]`, ordenada, exige poder ler a visão
+`handlers` (403 caso contrário).
+
+**Parâmetros de ação (`handler_param`).** Uma `ACTION` pode declarar parâmetros que o front
+coleta num modal. Cada linha de `handler_param` tem as mesmas colunas de definição de
+`column` (`nm_param`, `ds_label`, `ie_type`, `nr_seq_domain`, `nr_seq_table_ref`,
+`ie_required`, `qt_size`, `vl_default`, `ds_hint`, `nr_order`), sem o que é exclusivo de
+coluna física (unique, escala, min/max, regex, fórmula). Em `/api/meta`, cada ação de
+`vision.actions` traz `params: [...]` (vazio se não há), ordenado por `nr_order`, com cada
+item no mesmo formato JSON dos campos de tabela mais `name`:
+
+```json
+{ "name": "convidar", "label": "Convidar", "placement": "HEADER", "confirm": false,
+  "params": [
+    { "name": "cpf", "type": "STRING", "label": "CPF", "required": true, "unique": false, "size": 11 },
+    { "name": "qtd", "type": "INTEGER", "label": "Quantidade", "required": false, "unique": false }
+  ] }
+```
+
+**Chamada.** O front chama `POST /api/function/{nm_handler}` com
+`{ visionKey, recordId?, params? }`. Antes de executar uma `ACTION`, o backend valida
+`params` contra os `handler_param` (tipo, obrigatório, tamanho, domínio). Falha devolve
+**400** no formato de validação por campo do CRUD:
+`{ "message": "...", "errors": [{ "field": "cpf", "code": "required", "message": "CPF é obrigatório" }] }`.
+`ENDPOINT` não valida nem padroniza o retorno.
+
+**Retorno padronizado (`ActionResult`).** O handler `ACTION` devolve
+`com.vellum.handler.ActionResult`, serializado sem campos nulos:
+
+```
+{ ok: true, message?, effect: 'NONE'|'RELOAD'|'OPEN_VISION'|'OPEN_URL'|'DOWNLOAD',
+  vision?, recordId?, url?, filename?, mime?, contentBase64? }
+```
+
+| Fábrica                                 | Efeito                                  |
+|-----------------------------------------|------------------------------------------|
+| `none()`                                | `NONE`                                   |
+| `reload()`                              | `RELOAD`                                 |
+| `message(String)`                       | `RELOAD` com `message`                   |
+| `openVision(String visionKey, Long id)` | `OPEN_VISION` (`vision`, `recordId`)     |
+| `openUrl(String)`                       | `OPEN_URL` (`url`)                       |
+| `download(nome, mime, byte[])`          | `DOWNLOAD` (`filename`, `mime`, `contentBase64`) |
+| `withMessage(String)`                   | mesma ação, com `message`                |
+
+Compatibilidade: `ACTION` que devolve `null` responde `{ ok: true, effect: 'RELOAD' }`;
+qualquer outro objeto que não seja `ActionResult` segue como está (o front trata ausência de
+`effect` como `RELOAD`).
 
 ### 3.9 Tabelas complementares (necessárias, além das 8 pedidas)
 

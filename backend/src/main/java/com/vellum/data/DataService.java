@@ -469,7 +469,7 @@ public class DataService {
                 case "DATETIME" -> LocalDateTime.parse(s.trim().replace(' ', 'T'),
                         DateTimeFormatter.ISO_LOCAL_DATE_TIME);
                 case "TIME" -> LocalTime.parse(s.trim());
-                default -> s; // STRING, TEXT, DOMAIN, JSON
+                default -> s; // STRING, TEXT, DOMAIN, JSON, HANDLER_BEAN
             };
         } catch (RuntimeException e) {
             throw new ValidationException(List.of(new ValidationException.FieldError(
