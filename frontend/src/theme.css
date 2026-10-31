@@ -41,8 +41,18 @@
 .app-window {
   width: calc(100% - 2 * var(--space-md));
   margin: var(--space-md) auto;
-  min-height: calc(100dvh - 2 * var(--space-md));
+  /* altura fixa (não min-height): a janela não cresce com o conteúdo, então a
+     página não rola e a sidebar não estica — quem rola é o .window-content */
+  height: calc(100dvh - 2 * var(--space-md));
 }
+
+/* margem + janela = 100dvh: sem rolagem da página no desktop */
+@media (min-width: 641px) {
+  body:has(.app-window) { overflow: hidden; }
+}
+
+/* sidebar com mais itens do que cabe rola por dentro; o rodapé fica no fim */
+.app-window .sidebar { overflow-y: auto; }
 
 .content-header {
   display: flex;
@@ -192,6 +202,7 @@
   .app-window {
     width: 100%;
     margin: 0;
+    height: auto;
     min-height: 100dvh;
   }
 
