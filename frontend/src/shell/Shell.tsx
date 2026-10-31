@@ -8,7 +8,7 @@ import VisionRenderer from '../visions/VisionRenderer'
 import type { Row, VisionDef } from '../types'
 
 /*
- * Casca do app: .window + .sidebar geradas do metadado (sidebar_group + vision),
+ * Casca do app: .window + .sidebar geradas do metadado (sidebar_group > sidebar_item > vision),
  * tabbar no mobile e stack de navegação pai → filho (MASTER_DETAIL, modelo do
  * integrator). Nenhuma tela é escrita à mão aqui — o menu é o cadastro.
  */
@@ -24,35 +24,33 @@ export default function Shell() {
   const { auth, logout, pode } = useAuth()
   const toast = useToast()
 
+  /* O backend já entrega grupo > item > visões filtrado e ordenado; aqui só
+     resolve as chaves para VisionDef e descarta o que não existir no payload. */
   const menu = useMemo(() => {
-    const raizes = meta.visions.filter(v => v.order !== undefined && v.order !== null && !v.parent)
-    const grupos = new Map<string, VisionDef[]>()
-    for (const v of raizes) {
-      const g = v.sidebarGroup ?? ''
-      if (!grupos.has(g)) grupos.set(g, [])
-      grupos.get(g)!.push(v)
-    }
-    // ordem dos grupos vem de sidebar_group; visões sem grupo primeiro
-    const ordenados: { label: string; collapsible: boolean; visions: VisionDef[] }[] = []
-    if (grupos.has('')) ordenados.push({ label: '', collapsible: false, visions: grupos.get('')! })
-    for (const g of meta.sidebarGroups) {
-      if (grupos.has(g.label)) {
-        ordenados.push({ label: g.label, collapsible: g.collapsible, visions: grupos.get(g.label)! })
-      }
-    }
-    return ordenados
+    const porChave = new Map(meta.visions.map(v => [v.key, v]))
+    return meta.sidebarGroups
+      .map(g => ({
+        label: g.label,
+        collapsible: g.collapsible,
+        items: g.items
+          .map(i => ({ ...i, vs: i.visions.map(k => porChave.get(k)).filter((v): v is VisionDef => !!v) }))
+          .filter(i => i.vs.length > 0),
+      }))
+      .filter(g => g.items.length > 0)
   }, [meta])
 
-  const primeira = menu[0]?.visions[0]?.key
+  type ItemMenu = (typeof menu)[number]['items'][number]
+  const primeira = menu[0]?.items[0]?.vs[0]?.key
 
   const barraCompacta = useBarraRetratil()
 
-  /* Grupo recolhível nasce fechado (é o que o cadastro pede); só o grupo da
+  /* Grupo recolhível e item com várias visões nascem fechados; só o que contém a
      tela aberta no boot começa aberto, senão o item ativo ficaria escondido. */
   const [abertos, setAbertos] = useState<Record<string, boolean>>(() => {
-    const g = menu.find(x => x.collapsible && x.visions.some(v => v.key === primeira))
-    return g ? { [g.label]: true } : {}
+    const g = menu.find(x => x.collapsible && x.items.some(i => i.vs.some(v => v.key === primeira)))
+    return g ? { [`g:${g.label}`]: true } : {}
   })
+  const [itemEscolha, setItemEscolha] = useState<ItemMenu | null>(null)
   const [stack, setStack] = useState<StackEntry[]>(() =>
     primeira ? [{ key: primeira, crumb: '' }] : [])
 
@@ -98,7 +96,13 @@ export default function Shell() {
   }
 
   const ehAdmin = pode('DICTIONARY_EDIT')
-  const itensTabbar = menu.flatMap(g => g.visions).slice(0, 4)
+  const itensTabbar = menu.flatMap(g => g.items).slice(0, 4)
+  const raizAtiva = stack[0]?.key
+
+  function clicarItemTabbar(i: ItemMenu) {
+    if (i.vs.length === 1) irRaiz(i.vs[0].key)
+    else setItemEscolha(i)
+  }
 
   return (
     <NavegacaoContext.Provider value={{ abrirVisao }}>
@@ -113,13 +117,14 @@ export default function Shell() {
         </div>
 
         {menu.map(grupo => {
-          const aberto = !grupo.collapsible || !!abertos[grupo.label]
+          const chaveGrupo = `g:${grupo.label}`
+          const aberto = !grupo.collapsible || !!abertos[chaveGrupo]
           return (
-          <div key={grupo.label || '_'} style={{ display: 'contents' }}>
+          <div key={chaveGrupo} style={{ display: 'contents' }}>
             {grupo.label && (grupo.collapsible ? (
               <button type="button" aria-expanded={aberto}
                 className={`sidebar-heading sidebar-heading--toggle${aberto ? ' is-open' : ''}`}
-                onClick={() => setAbertos(a => ({ ...a, [grupo.label]: !aberto }))}>
+                onClick={() => setAbertos(a => ({ ...a, [chaveGrupo]: !aberto }))}>
                 {grupo.label}
                 <svg className="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -127,16 +132,48 @@ export default function Shell() {
                 </svg>
               </button>
             ) : <p className="sidebar-heading">{grupo.label}</p>)}
-            {aberto && grupo.visions.map(v => (
-              <button key={v.key} type="button"
-                className={`sidebar-item${stack[0]?.key === v.key ? ' is-active' : ''}`}
-                onClick={() => irRaiz(v.key)}>
-                <span className="sidebar-icon" style={{ background: v.iconColor || 'var(--accent)' }}>
-                  {icone(v.icon)}
+            {aberto && grupo.items.map(item => {
+              const tile = (
+                <span className="sidebar-icon" style={{ background: item.iconColor || 'var(--accent)' }}>
+                  {icone(item.icon)}
                 </span>
-                {v.title}
-              </button>
-            ))}
+              )
+              if (item.vs.length === 1) {
+                const v = item.vs[0]
+                return (
+                  <button key={item.id} type="button"
+                    className={`sidebar-item${raizAtiva === v.key ? ' is-active' : ''}`}
+                    onClick={() => irRaiz(v.key)}>
+                    {tile}
+                    {item.label}
+                  </button>
+                )
+              }
+              const chaveItem = `i:${item.id}`
+              const contemAtiva = item.vs.some(v => v.key === raizAtiva)
+              const itemAberto = contemAtiva || !!abertos[chaveItem]
+              return (
+                <div key={item.id} style={{ display: 'contents' }}>
+                  <button type="button" aria-expanded={itemAberto}
+                    className={`sidebar-item sidebar-item--toggle${itemAberto ? ' is-open' : ''}`}
+                    onClick={() => setAbertos(a => ({ ...a, [chaveItem]: !itemAberto }))}>
+                    {tile}
+                    {item.label}
+                    <svg className="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                  {itemAberto && item.vs.map(v => (
+                    <button key={v.key} type="button"
+                      className={`sidebar-item sidebar-item--sub${raizAtiva === v.key ? ' is-active' : ''}`}
+                      onClick={() => irRaiz(v.key)}>
+                      {v.title}
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
           </div>
           )
         })}
@@ -180,12 +217,13 @@ export default function Shell() {
       </div>
 
       <nav className={`tabbar tabbar--mobile${barraCompacta ? ' is-compacta' : ''}`} aria-label="Navegação principal">
-        {itensTabbar.map(v => (
-          <button key={v.key} type="button"
-            className={`tabbar-item${stack[0]?.key === v.key ? ' is-active' : ''}`}
-            onClick={() => irRaiz(v.key)}>
-            {icone(v.icon)}
-            {v.title}
+        {itensTabbar.map(i => (
+          <button key={i.id} type="button"
+            className={`tabbar-item${i.vs.some(v => v.key === raizAtiva) ? ' is-active' : ''}`}
+            aria-haspopup={i.vs.length > 1 ? 'dialog' : undefined}
+            onClick={() => clicarItemTabbar(i)}>
+            {icone(i.icon)}
+            {i.label}
           </button>
         ))}
         <button className="tabbar-item" type="button" onClick={logout}>
@@ -193,6 +231,26 @@ export default function Shell() {
           Sair
         </button>
       </nav>
+
+      <div className="modal-overlay modal-overlay--sheet" hidden={!itemEscolha}
+        onClick={() => setItemEscolha(null)}
+        onKeyDown={e => { if (e.key === 'Escape') setItemEscolha(null) }}>
+        <div className="modal modal--sheet" role="dialog" aria-modal="true" aria-label={itemEscolha?.label}
+          onClick={e => e.stopPropagation()}>
+          <div className="sheet-grabber"></div>
+          <h3>{itemEscolha?.label}</h3>
+          <div className="stack" style={{ gap: 'var(--space-xs)' }}>
+            {itemEscolha?.vs.map(v => (
+              <button key={v.key} type="button"
+                className={`btn ${raizAtiva === v.key ? '' : 'btn--ghost'}`}
+                style={{ width: '100%' }}
+                onClick={() => { irRaiz(v.key); setItemEscolha(null) }}>
+                {v.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
     </NavegacaoContext.Provider>
   )
