@@ -1,4 +1,4 @@
-import type { Row } from './types'
+import type { ActionResult, Row } from './types'
 
 const AUTH_KEY = 'vellum.auth'
 
@@ -56,6 +56,8 @@ function query(params: Record<string, any>): string {
 /* DataClient genérico sobre /api/data, /api/lookup, /api/function e /api/dashboard.
    Toda operação de dados leva a visão de contexto (_vision) — o backend tira
    dela filtros, permissões e validações. */
+let beansCache: Promise<string[]> | null = null
+
 export const data = {
   list: (table: string, vision: string, params: Record<string, any> = {}): Promise<Row[]> =>
     api.get(`/data/${table}${query({ ...params, _vision: vision })}`),
@@ -71,8 +73,15 @@ export const data = {
     api.put(`/data/${table}/ordem${query({ _vision: vision })}`, { ids }),
   lookup: (table: string, vision: string, params: Record<string, any> = {}): Promise<{ id: number; label: string }[]> =>
     api.get(`/lookup/${table}${query({ ...params, _vision: vision })}`),
-  execute: (name: string, corpo: { visionKey?: string; recordId?: number; params?: any } = {}) =>
+  execute: (name: string, corpo: { visionKey?: string; recordId?: number; params?: any } = {}): Promise<ActionResult | null> =>
     api.post(`/function/${name}`, corpo),
+  handlerBeans: (): Promise<string[]> => {
+    // a lista só muda com deploy do backend: uma busca por sessão basta
+    if (!beansCache) {
+      beansCache = api.get('/handler-beans').catch(e => { beansCache = null; throw e })
+    }
+    return beansCache
+  },
   dashboard: (visionKey: string, from?: string, to?: string) =>
     api.get(`/dashboard/${visionKey}${query({ from, to })}`),
 }

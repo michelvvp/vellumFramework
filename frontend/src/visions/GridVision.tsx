@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom'
 import { data } from '../api'
 import { useMeta } from '../meta'
 import {
-  ConfirmModal, DatePicker, DragHandle, Popup, SelecaoModal, SwipeRow,
+  ActionButton, ConfirmModal, DatePicker, DragHandle, Popup, SelecaoModal, SwipeRow,
   formatarData, useArrastarOrdem, useIsMobile, useToast, type PopupOption,
 } from '../components'
 import FormModal from './FormModal'
-import type { ActionDef, ColumnDef, Row, VisionDef, VisionColumnDef } from '../types'
+import type { ColumnDef, Row, VisionDef, VisionColumnDef } from '../types'
 
 /*
  * A listagem genérica — o arquétipo consolidado do gym: tabela no desktop,
@@ -15,9 +15,10 @@ import type { ActionDef, ColumnDef, Row, VisionDef, VisionColumnDef } from '../t
  * criar/editar, exclusão em duas etapas, menu de contexto por linha com as
  * visões-filhas (MASTER_DETAIL) e as ações cadastradas.
  */
-export default function GridVision({ vision, parentId, onOpenChild }: {
+export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
   vision: VisionDef
   parentId?: number
+  abrirId?: number
   onOpenChild: (childKey: string, row: Row) => void
 }) {
   const { meta } = useMeta()
@@ -31,7 +32,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
   const [filtros, setFiltros] = useState<Record<string, any>>({})
   const [editando, setEditando] = useState<Row | null>(null)
   const [excluindo, setExcluindo] = useState<Row | null>(null)
-  const [confirmandoAcao, setConfirmandoAcao] = useState<{ acao: ActionDef; row?: Row } | null>(null)
+  const [acaoOcupada, setAcaoOcupada] = useState(false) // ação do menu com diálogo/chamada em curso
   const [menuAberto, setMenuAberto] = useState<number | null>(null) // nr_sequence da linha
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
   const gatilhoMenu = useRef<HTMLButtonElement | null>(null)
@@ -80,6 +81,14 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // OPEN_VISION com recordId: abre o registro no formulário ao entrar na visão
+  useEffect(() => {
+    if (abrirId === undefined || !vision.allow.update) return
+    data.get(vision.table!, abrirId, vision.key)
+      .then(setEditando)
+      .catch(e => toast(e.message, 'danger'))
+  }, [abrirId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // opções dos filtros ENTITY (combos do cabeçalho)
   useEffect(() => {
     for (const vf of camposFiltro) {
@@ -118,7 +127,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
 
   // menu de contexto fecha em clique fora e ao rolar (posição é fixa na tela)
   useEffect(() => {
-    if (menuAberto === null) return
+    if (menuAberto === null || acaoOcupada) return
     const fechar = (e: Event) => {
       if (menuFlutuante.current?.contains(e.target as Node)) return
       setMenuAberto(null)
@@ -132,7 +141,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
       window.removeEventListener('scroll', fecharSempre, true)
       window.removeEventListener('resize', fecharSempre)
     }
-  }, [menuAberto])
+  }, [menuAberto, acaoOcupada])
 
   const drag = useArrastarOrdem(setRows, lista => {
     data.reorder(vision.table!, vision.key, lista.map(r => r.nr_sequence))
@@ -150,21 +159,6 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
     } catch (e: any) {
       toast(e.message, 'danger')
     }
-  }
-
-  async function executarAcao(acao: ActionDef, row?: Row) {
-    try {
-      await data.execute(acao.name, { visionKey: vision.key, recordId: row?.nr_sequence })
-      toast(acao.successMsg || 'Feito')
-      carregar()
-    } catch (e: any) {
-      toast(e.message, 'danger')
-    }
-  }
-
-  function dispararAcao(acao: ActionDef, row?: Row) {
-    if (acao.confirm) setConfirmandoAcao({ acao, row })
-    else executarAcao(acao, row)
   }
 
   async function abrirSelecao() {
@@ -239,7 +233,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
             position: 'fixed', right: 'auto',
             top: menuPos?.top ?? 0, left: menuPos?.left ?? 0,
             // primeiro quadro serve só para medir o menu; ele só aparece posicionado
-            visibility: menuPos ? 'visible' : 'hidden',
+            visibility: menuPos && !acaoOcupada ? 'visible' : 'hidden',
           }}>
           {vision.children.map(childKey => {
             const filho = meta.visions.find(v => v.key === childKey)
@@ -251,10 +245,9 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
             )
           })}
           {vision.actions.filter(a => a.placement === 'ROW').map(a => (
-            <button className="menu-item" type="button" role="menuitem" key={a.name}
-              onClick={() => { setMenuAberto(null); dispararAcao(a, row) }}>
-              <span className="menu-check">⚡</span>{a.label ?? a.name}
-            </button>
+            <ActionButton key={a.name} variant="menu" action={a} visionKey={vision.key}
+              recordId={row.nr_sequence} onDone={() => carregar()}
+              onBusy={ocupada => { setAcaoOcupada(ocupada); if (!ocupada) setMenuAberto(null) }} />
           ))}
           {(vision.children.length > 0 || vision.actions.some(a => a.placement === 'ROW'))
             && (vision.allow.update || vision.allow.delete) && <div className="menu-divider"></div>}
@@ -350,9 +343,7 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
         <div className="row" style={{ gap: 'var(--space-sm)' }}>
           {camposFiltro.map(controleFiltro)}
           {vision.actions.filter(a => a.placement !== 'ROW').map(a => (
-            <button key={a.name} className="btn btn--secondary" type="button" onClick={() => dispararAcao(a)}>
-              {a.label ?? a.name}
-            </button>
+            <ActionButton key={a.name} action={a} visionKey={vision.key} onDone={() => carregar()} />
           ))}
           {campoMulti && vision.allow.create && (
             <button className="btn btn--secondary" type="button" onClick={abrirSelecao}>
@@ -416,18 +407,13 @@ export default function GridVision({ vision, parentId, onOpenChild }: {
 
       <FormModal vision={vision} registro={editando} parentId={parentId}
         onFechar={() => setEditando(null)}
-        onSalvo={() => { setEditando(null); toast('Salvo'); carregar() }} />
+        onSalvo={() => { setEditando(null); toast('Salvo'); carregar() }}
+        onAcao={() => { setEditando(null); carregar() }} />
 
       <ConfirmModal aberto={excluindo !== null}
         titulo={`Excluir ${tabela.label.toLowerCase()}?`}
         texto={excluindo ? `"${rotuloLinha(excluindo)}" será excluído. Não dá para desfazer.` : ''}
         onConfirmar={excluir} onCancelar={() => setExcluindo(null)} />
-
-      <ConfirmModal aberto={confirmandoAcao !== null}
-        titulo={confirmandoAcao ? `${confirmandoAcao.acao.label ?? confirmandoAcao.acao.name}?` : ''}
-        texto="Confirma executar esta ação?" confirmar="Executar"
-        onConfirmar={() => { const c = confirmandoAcao!; setConfirmandoAcao(null); executarAcao(c.acao, c.row) }}
-        onCancelar={() => setConfirmandoAcao(null)} />
 
       {campoMulti && (
         <SelecaoModal aberto={selecaoAberta} titulo={vision.title}
