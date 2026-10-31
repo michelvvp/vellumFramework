@@ -98,8 +98,6 @@ export interface VisionDef {
   component?: string
   icon?: string
   iconColor?: string
-  sidebarGroup?: string
-  order?: number
   readOnly?: boolean
   allow: { create: boolean; update: boolean; delete: boolean }
   columns: VisionColumnDef[]
@@ -107,6 +105,23 @@ export interface VisionDef {
   actions: ActionDef[]
   widgets: WidgetDef[]
   validations: ValidationDef[]
+}
+
+export interface SidebarItem {
+  id: number
+  label: string
+  icon?: string
+  iconColor?: string
+  order: number
+  /** chaves de `visions`, já ordenadas */
+  visions: string[]
+}
+
+export interface SidebarGroup {
+  label: string
+  order: number
+  collapsible: boolean
+  items: SidebarItem[]
 }
 
 export interface Meta {
@@ -118,7 +133,7 @@ export interface Meta {
   domains: Record<string, DomainValue[]>
   tables: Record<string, TableDef>
   visions: VisionDef[]
-  sidebarGroups: { label: string; order: number; collapsible: boolean }[]
+  sidebarGroups: SidebarGroup[]
   user: {
     id: number
     name: string
