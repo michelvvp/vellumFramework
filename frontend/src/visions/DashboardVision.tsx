@@ -3,7 +3,7 @@ import {
   Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { data } from '../api'
-import { DatePicker, formatarData } from '../ui'
+import { DatePicker, formatarData } from '../components'
 import type { VisionDef } from '../types'
 
 /*

@@ -5,7 +5,7 @@ import './theme.css'
 import './custom' // registra as telas CUSTOM do app
 import App from './App'
 import { AuthProvider } from './auth'
-import { ToastProvider } from './ui'
+import { ToastProvider } from './components'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

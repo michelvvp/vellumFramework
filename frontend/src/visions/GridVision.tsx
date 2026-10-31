@@ -5,7 +5,7 @@ import { useMeta } from '../meta'
 import {
   ConfirmModal, DatePicker, DragHandle, Popup, SelecaoModal, SwipeRow,
   formatarData, useArrastarOrdem, useIsMobile, useToast, type PopupOption,
-} from '../ui'
+} from '../components'
 import FormModal from './FormModal'
 import type { ActionDef, ColumnDef, Row, VisionDef, VisionColumnDef } from '../types'
 
