@@ -194,6 +194,10 @@
    hover a camada translúcida da linha é recomposta sobre ele. O separador só
    aparece com rolagem pendente (.is-rolavel, ver GridVision). O menu dos 3
    pontos está no <body> (z-index 60) e não é afetado. */
+/* border-collapse: collapse (DS) deixa as bordas no grid da tabela: a célula
+   sticky anda, a borda não, e o fundo opaco a cobre. Com separate + spacing 0
+   o visual é o mesmo, mas cada borda pertence à própria célula e acompanha. */
+.table-wrap .table { border-collapse: separate; border-spacing: 0; }
 .table .col-acoes {
   position: sticky; right: 0; z-index: 2;
   background: var(--surface);
