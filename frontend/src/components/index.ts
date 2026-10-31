@@ -3,6 +3,7 @@
    system; os contratos de teclado/foco/toque do DS moram aqui. */
 export { ToastProvider, useToast } from './Toast'
 export { useIsMobile } from './useIsMobile'
+export { useBarraRetratil } from './useBarraRetratil'
 export { ConfirmModal } from './ConfirmModal'
 export { SelecaoModal } from './SelecaoModal'
 export { Popup, type PopupOption } from './Popup'

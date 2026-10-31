@@ -204,6 +204,56 @@
     margin: 0;
     height: auto;
     min-height: 100dvh;
+    /* O backdrop-filter da .window cria bloco contentor para descendentes
+       position: fixed — a .tabbar se ancorava no fim do scroll, não na viewport. */
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* Barra inferior retrátil (ver useBarraRetratil): ao descer, o rótulo some e a
+     barra vira um trilho de ícones; ao subir, volta ao tamanho de uso. O rótulo
+     é um nó de texto solto no .tabbar-item, por isso o font-size: 0. */
+  html, body { overscroll-behavior-y: none; }
+  .tabbar {
+    max-width: calc(100% - 2 * var(--space-md));
+    transition: padding var(--transition), gap var(--transition);
+    will-change: transform;
+  }
+  .tabbar-item {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline: 8px;
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition),
+                padding var(--transition), min-width var(--transition),
+                font-size var(--transition), gap var(--transition);
+  }
+  .tabbar.is-compacta { padding: 3px; }
+  .tabbar.is-compacta .tabbar-item {
+    min-width: 0;
+    padding: 7px 11px;
+    gap: 0;
+    font-size: 0;
+  }
+
+  /* Fio antes da ação final (Sair). No Vellum as abas também são <button>,
+     então o marcador é o último item, não o primeiro botão. */
+  .tabbar > .tabbar-item:last-child {
+    position: relative;
+    margin-left: 9px;
+  }
+  .tabbar > .tabbar-item:last-child::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--glass-border);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tabbar, .tabbar-item { transition: none; }
   }
 
   .content-header h1 { font-size: var(--text-lg); }
