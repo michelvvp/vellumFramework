@@ -189,6 +189,28 @@
 .row-menu { position: relative; display: inline-flex; }
 .menu--flutuante { z-index: 60; }
 
+/* Coluna de ações da tabela travada na borda direita enquanto as demais rolam
+   por baixo. Fundo opaco (--surface do card) para o conteúdo não vazar; no
+   hover a camada translúcida da linha é recomposta sobre ele. O separador só
+   aparece com rolagem pendente (.is-rolavel, ver GridVision). O menu dos 3
+   pontos está no <body> (z-index 60) e não é afetado. */
+.table .col-acoes {
+  position: sticky; right: 0; z-index: 2;
+  background: var(--surface);
+  white-space: nowrap;
+}
+.table th.col-acoes { z-index: 3; }
+.table tbody tr:hover .col-acoes {
+  background: linear-gradient(var(--glass-fill), var(--glass-fill)), var(--surface);
+}
+.table .col-acoes::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 1px;
+  background: var(--glass-border);
+  opacity: 0; transition: opacity var(--transition);
+  pointer-events: none;
+}
+.table-wrap.is-rolavel .col-acoes::before { opacity: 1; }
+
 /* Grade de widgets do dashboard */
 .grid-cards {
   display: grid;

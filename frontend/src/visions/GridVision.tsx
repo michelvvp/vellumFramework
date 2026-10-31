@@ -40,6 +40,8 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
   const [selecaoAberta, setSelecaoAberta] = useState(false)
   const [opcoesSelecao, setOpcoesSelecao] = useState<{ id: number; nome: string }[]>([])
   const [opcoesFiltro, setOpcoesFiltro] = useState<Record<string, PopupOption[]>>({})
+  const tabelaWrap = useRef<HTMLDivElement | null>(null)
+  const [rolavel, setRolavel] = useState(false) // há conteúdo escondido à esquerda da coluna de ações fixa
 
   const colunas = useMemo(() => vision.columns
     .filter(f => f.grid)
@@ -142,6 +144,20 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
       window.removeEventListener('resize', fecharSempre)
     }
   }, [menuAberto, acaoOcupada])
+
+  /* Coluna de ações fixa (.col-acoes): o separador à esquerda dela só aparece
+     enquanto ainda há coluna rolando por baixo — tabela estreita fica igual. */
+  useEffect(() => {
+    const wrap = tabelaWrap.current
+    if (!wrap) return
+    const atualizar = () => setRolavel(wrap.scrollWidth - wrap.clientWidth - wrap.scrollLeft > 1)
+    atualizar()
+    wrap.addEventListener('scroll', atualizar, { passive: true })
+    const ro = new ResizeObserver(atualizar)
+    ro.observe(wrap)
+    if (wrap.firstElementChild) ro.observe(wrap.firstElementChild)
+    return () => { wrap.removeEventListener('scroll', atualizar); ro.disconnect() }
+  }, [carregando, arrastavel, mobile, rows, colunas])
 
   const drag = useArrastarOrdem(setRows, lista => {
     data.reorder(vision.table!, vision.key, lista.map(r => r.nr_sequence))
@@ -384,7 +400,7 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
         <div className="card card--solid" style={{ padding: 0, overflow: 'hidden' }}>
           {/* com arrasto habilitado, desktop e mobile usam a lista (é onde vive o pegador) */}
           {!arrastavel && !mobile && (
-            <div className="table-wrap desktop-only">
+            <div className={`table-wrap desktop-only${rolavel ? ' is-rolavel' : ''}`} ref={tabelaWrap}>
               <table className="table">
                 <thead>
                   <tr>
@@ -393,7 +409,7 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
                       const numerica = def.type === 'INTEGER' || def.type === 'DECIMAL'
                       return <th key={c.column} className={numerica ? 'numeric' : undefined}>{c.label}</th>
                     })}
-                    {botoesDesktop > 0 && <th style={{ width: botoesDesktop * 36 }}></th>}
+                    {botoesDesktop > 0 && <th className="col-acoes" style={{ width: botoesDesktop * 36 }}></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -404,7 +420,7 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
                         const numerica = def.type === 'INTEGER' || def.type === 'DECIMAL'
                         return <td key={c.column} className={numerica ? 'numeric' : undefined}>{celula(c, row)}</td>
                       })}
-                      {botoesDesktop > 0 && <td style={{ textAlign: 'right' }}>{botoesLinha(row)}</td>}
+                      {botoesDesktop > 0 && <td className="col-acoes" style={{ textAlign: 'right' }}>{botoesLinha(row)}</td>}
                     </tr>
                   ))}
                   {rows.length === 0 && (
