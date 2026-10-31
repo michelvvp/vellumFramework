@@ -272,3 +272,6 @@
     max-width: none;
   }
 }
+
+/* Ícone de excluir nas linhas da tabela desktop: perigo ao passar o mouse */
+.icon-btn--danger:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
