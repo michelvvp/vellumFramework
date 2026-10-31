@@ -194,9 +194,11 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
     }
   }
 
-  const temMenuLinha = vision.children.length > 0
+  const temFilhosOuAcoes = vision.children.length > 0
     || vision.actions.some(a => a.placement === 'ROW')
-    || vision.allow.update || vision.allow.delete
+  const temMenuLinha = temFilhosOuAcoes || vision.allow.update || vision.allow.delete
+  // desktop: editar/excluir viram ícones ao lado do menu; cada botão ocupa 36px
+  const botoesDesktop = (temFilhosOuAcoes ? 1 : 0) + (vision.allow.update ? 1 : 0) + (vision.allow.delete ? 1 : 0)
 
   function celula(vf: VisionColumnDef, row: Row) {
     const def = tabela.columns[vf.column]
@@ -210,8 +212,8 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
     return partes.join(' · ') || `#${row.nr_sequence}`
   }
 
-  /* menu de contexto da linha (filhos, ações, editar, excluir) */
-  function menuLinha(row: Row) {
+  /* menu de contexto da linha (filhos, ações e, no mobile, editar/excluir) */
+  function menuLinha(row: Row, comEditarExcluir = true) {
     return (
       <span className="row-menu" onPointerDown={e => e.stopPropagation()}>
         <button className="icon-btn" type="button" data-tooltip="Opções"
@@ -249,21 +251,47 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
               recordId={row.nr_sequence} onDone={() => carregar()}
               onBusy={ocupada => { setAcaoOcupada(ocupada); if (!ocupada) setMenuAberto(null) }} />
           ))}
-          {(vision.children.length > 0 || vision.actions.some(a => a.placement === 'ROW'))
+          {comEditarExcluir && temFilhosOuAcoes
             && (vision.allow.update || vision.allow.delete) && <div className="menu-divider"></div>}
-          {vision.allow.update && (
+          {comEditarExcluir && vision.allow.update && (
             <button className="menu-item" type="button" role="menuitem"
               onClick={() => { setMenuAberto(null); setEditando(row) }}>
               <span className="menu-check">✎</span>Editar
             </button>
           )}
-          {vision.allow.delete && (
+          {comEditarExcluir && vision.allow.delete && (
             <button className="menu-item" type="button" role="menuitem"
               onClick={() => { setMenuAberto(null); setExcluindo(row) }}>
               <span className="menu-check">✕</span>Excluir
             </button>
           )}
         </div>, document.body)}
+      </span>
+    )
+  }
+
+  /* desktop: menu (se houver filhos/ações) + ícones de editar e excluir */
+  function botoesLinha(row: Row) {
+    const rotulo = rotuloLinha(row)
+    return (
+      <span className="row" style={{ gap: 0, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+        {temFilhosOuAcoes && menuLinha(row, false)}
+        {vision.allow.update && (
+          <button className="icon-btn" type="button" data-tooltip="Editar" aria-label={`Editar ${rotulo}`}
+            onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEditando(row) }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+              <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )}
+        {vision.allow.delete && (
+          <button className="icon-btn icon-btn--danger" type="button" data-tooltip="Excluir" aria-label={`Excluir ${rotulo}`}
+            onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setExcluindo(row) }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+              <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" />
+            </svg>
+          </button>
+        )}
       </span>
     )
   }
@@ -380,7 +408,7 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
                       const numerica = def.type === 'INTEGER' || def.type === 'DECIMAL'
                       return <th key={c.column} className={numerica ? 'numeric' : undefined}>{c.label}</th>
                     })}
-                    {temMenuLinha && <th style={{ width: 48 }}></th>}
+                    {botoesDesktop > 0 && <th style={{ width: botoesDesktop * 36 }}></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -391,11 +419,11 @@ export default function GridVision({ vision, parentId, abrirId, onOpenChild }: {
                         const numerica = def.type === 'INTEGER' || def.type === 'DECIMAL'
                         return <td key={c.column} className={numerica ? 'numeric' : undefined}>{celula(c, row)}</td>
                       })}
-                      {temMenuLinha && <td style={{ textAlign: 'right' }}>{menuLinha(row)}</td>}
+                      {botoesDesktop > 0 && <td style={{ textAlign: 'right' }}>{botoesLinha(row)}</td>}
                     </tr>
                   ))}
                   {rows.length === 0 && (
-                    <tr><td colSpan={colunas.length + 1} className="text-muted">Nenhum registro.</td></tr>
+                    <tr><td colSpan={colunas.length + (botoesDesktop > 0 ? 1 : 0)} className="text-muted">Nenhum registro.</td></tr>
                   )}
                 </tbody>
               </table>
