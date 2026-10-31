@@ -15,6 +15,10 @@ public class ValidationException extends RuntimeException {
         this.errors = errors;
     }
 
+    public List<FieldError> errors() {
+        return errors;
+    }
+
     public List<Map<String, String>> asMaps() {
         return errors.stream().map(e -> Map.of(
                 "field", e.field() == null ? "" : e.field(),

@@ -6,9 +6,13 @@ import type { Meta, VisionDef } from './types'
  * ComponentRegistry — o escape hatch de primeira classe (seção 3.5/6 da
  * especificação). Telas CUSTOM são componentes React registrados por nome e
  * referenciados em vision.nm_component: recebem menu, permissão e tema do
- * framework de graça e compõem o catálogo (ui.tsx) — nunca CSS novo.
+ * framework de graça e compõem o catálogo (components/) — nunca CSS novo.
  *
  *   register('treinar', TreinarPage)
+ *
+ * Ações da visão (botões, parâmetros, toast e efeitos) usam o catálogo: renderize
+ * `<ActionButton action visionKey recordId onDone />` ou, sem botão, chame
+ * `useAction()` — a mesma lógica dos GridVision/FormModal, sem reescrever fetch.
  */
 export interface CustomProps {
   vision: VisionDef

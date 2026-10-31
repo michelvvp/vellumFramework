@@ -2,18 +2,21 @@ package com.vellum.handler;
 
 import com.vellum.auth.AuthTokenFilter;
 import com.vellum.auth.CurrentUser;
+import com.vellum.data.ValidationEngine;
 import com.vellum.meta.MetaModel;
 import com.vellum.meta.MetaService;
 import com.vellum.meta.Permissions;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,11 +29,14 @@ public class HandlerController {
     private final MetaService meta;
     private final HandlerRegistry registry;
     private final JdbcTemplate jdbc;
+    private final ValidationEngine validation;
 
-    public HandlerController(MetaService meta, HandlerRegistry registry, JdbcTemplate jdbc) {
+    public HandlerController(MetaService meta, HandlerRegistry registry, JdbcTemplate jdbc,
+                             ValidationEngine validation) {
         this.meta = meta;
         this.registry = registry;
         this.jdbc = jdbc;
+        this.validation = validation;
     }
 
     public record Chamada(String visionKey, Long recordId, Map<String, Object> params) {}
@@ -59,10 +65,24 @@ public class HandlerController {
         }
 
         Chamada c = corpo == null ? new Chamada(null, null, Map.of()) : corpo;
+        Map<String, Object> params = c.params() == null ? Map.of() : c.params();
+        if ("ACTION".equals(fn.type())) validation.validarParams(fn, params);
         Object resultado = registry.handler(fn.bean()).execute(new HandlerContext(
                 user, c.visionKey() != null ? c.visionKey() : fn.visionKey(), fn.table(),
                 fn.type(), c.recordId(), null,
-                c.params() == null ? Map.of() : c.params(), jdbc));
-        return resultado == null ? Map.of("ok", true) : resultado;
+                params, jdbc));
+        if (resultado == null)
+            return "ACTION".equals(fn.type()) ? ActionResult.reload() : Map.of("ok", true);
+        return resultado;
+    }
+
+    /** Nomes dos beans Handler disponíveis (alimenta o popup do tipo HANDLER_BEAN). */
+    @GetMapping("/api/handler-beans")
+    public List<String> beans(HttpServletRequest req) {
+        CurrentUser user = AuthTokenFilter.usuarioAtual(req);
+        MetaModel.Vision v = meta.get().visions.get("handlers");
+        if (v == null || !Permissions.podeLer(v, user))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "sem acesso à visão handlers");
+        return registry.nomesDeBeans();
     }
 }

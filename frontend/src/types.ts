@@ -52,6 +52,27 @@ export interface ActionDef {
   placement?: 'ROW' | 'HEADER'
   confirm?: boolean
   successMsg?: string
+  /** parâmetros coletados num modal; mesmo formato das colunas de tabela */
+  params?: ActionParamDef[]
+}
+
+export interface ActionParamDef extends ColumnDef {
+  name: string
+}
+
+export type ActionEffect = 'NONE' | 'RELOAD' | 'OPEN_VISION' | 'OPEN_URL' | 'DOWNLOAD'
+
+/** Retorno de POST /api/function/{name} para uma ACTION (sem effect = RELOAD). */
+export interface ActionResult {
+  ok: boolean
+  message?: string
+  effect?: ActionEffect
+  vision?: string
+  recordId?: number
+  url?: string
+  filename?: string
+  mime?: string
+  contentBase64?: string
 }
 
 export interface WidgetDef {

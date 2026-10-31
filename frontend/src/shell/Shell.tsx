@@ -3,7 +3,7 @@ import { useAuth } from '../auth'
 import { api } from '../api'
 import { useMeta } from '../meta'
 import { icone } from '../icons'
-import { iniciais, useToast } from '../ui'
+import { iniciais, NavegacaoContext, useToast } from '../components'
 import VisionRenderer from '../visions/VisionRenderer'
 import type { Row, VisionDef } from '../types'
 
@@ -16,6 +16,7 @@ interface StackEntry {
   key: string
   parentId?: number
   crumb: string
+  recordId?: number
 }
 
 export default function Shell() {
@@ -61,6 +62,14 @@ export default function Shell() {
     setStack([{ key, crumb: v.title }])
   }
 
+  /* OPEN_VISION de uma ação: vai para a visão como raiz e, com recordId,
+     abre o registro dela no formulário. */
+  function abrirVisao(key: string, recordId?: number) {
+    const v = meta.visions.find(x => x.key === key)
+    if (!v) { toast(`Visão "${key}" não disponível para o seu papel`, 'warning'); return }
+    setStack([{ key, crumb: v.title, recordId }])
+  }
+
   function abrirFilho(childKey: string, parentRow: Row, parentVision: VisionDef) {
     const filho = meta.visions.find(v => v.key === childKey)
     if (!filho) return
@@ -90,6 +99,7 @@ export default function Shell() {
   const itensTabbar = menu.flatMap(g => g.visions).slice(0, 4)
 
   return (
+    <NavegacaoContext.Provider value={{ abrirVisao }}>
     <div className="window app-window">
       <aside className="sidebar">
         <div className="identity">
@@ -159,8 +169,8 @@ export default function Shell() {
         )}
 
         {visaoAtual ? (
-          <VisionRenderer key={atual.key + (atual.parentId ?? '')}
-            vision={visaoAtual} parentId={atual.parentId}
+          <VisionRenderer key={atual.key + (atual.parentId ?? '') + (atual.recordId ?? '')}
+            vision={visaoAtual} parentId={atual.parentId} abrirId={atual.recordId}
             onOpenChild={(childKey, row) => abrirFilho(childKey, row, visaoAtual)} />
         ) : (
           <p className="text-muted">Nenhuma visão cadastrada para o seu papel ainda.</p>
@@ -182,5 +192,6 @@ export default function Shell() {
         </button>
       </nav>
     </div>
+    </NavegacaoContext.Provider>
   )
 }

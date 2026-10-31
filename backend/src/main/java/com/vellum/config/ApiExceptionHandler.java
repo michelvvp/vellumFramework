@@ -1,6 +1,7 @@
 package com.vellum.config;
 
 import com.vellum.data.ValidationException;
+import com.vellum.handler.ParamsInvalidosException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,6 +17,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<Map<String, Object>> validacao(ValidationException e) {
         return ResponseEntity.unprocessableEntity()
+                .body(Map.of("message", e.getMessage(), "errors", e.asMaps()));
+    }
+
+    /** Parâmetros de ação inválidos: 400, mesmo corpo por campo da validação do CRUD. */
+    @ExceptionHandler(ParamsInvalidosException.class)
+    public ResponseEntity<Map<String, Object>> params(ParamsInvalidosException e) {
+        return ResponseEntity.badRequest()
                 .body(Map.of("message", e.getMessage(), "errors", e.asMaps()));
     }
 

@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
+import { data } from '../api'
 import { useMeta } from '../meta'
-import { DatePicker, Popup, type PopupOption } from '../ui'
+import { DatePicker, Popup, type PopupOption } from '../components'
 import type { ColumnDef, VisionColumnDef } from '../types'
 
 /*
@@ -17,6 +19,7 @@ export default function FieldInput({ vf, def, value, onChange, error, entityOpti
   disabled?: boolean
 }) {
   const { meta } = useMeta()
+  const beans = useHandlerBeans(def.type === 'HANDLER_BEAN')
   const id = `f-${vf.column}`
   const component = vf.component || defaultComponent(def)
   const texto = value === null || value === undefined ? '' : String(value)
@@ -66,7 +69,8 @@ export default function FieldInput({ vf, def, value, onChange, error, entityOpti
         )
       }
       case 'POPUP': {
-        const opcoes = def.type === 'ENTITY' ? (entityOptions ?? []) : dominio()
+        const opcoes = def.type === 'ENTITY' ? (entityOptions ?? [])
+          : def.type === 'HANDLER_BEAN' ? beans.map(b => ({ value: b, label: b })) : dominio()
         const comVazio: PopupOption[] = def.required ? opcoes : [{ value: '', label: '—' }, ...opcoes]
         return disabled
           ? <input className="input" id={id} value={rotuloDe(opcoes, texto)} disabled />
@@ -127,6 +131,16 @@ export default function FieldInput({ vf, def, value, onChange, error, entityOpti
   )
 }
 
+/* Beans Handler do backend (GET /api/handler-beans), buscados uma vez por sessão. */
+function useHandlerBeans(ativo: boolean): string[] {
+  const [beans, setBeans] = useState<string[]>([])
+  useEffect(() => {
+    if (!ativo) return
+    data.handlerBeans().then(setBeans).catch(() => setBeans([]))
+  }, [ativo])
+  return beans
+}
+
 function rotulo(vf: VisionColumnDef, def: ColumnDef) {
   return vf.label || def.label
 }
@@ -140,7 +154,7 @@ export function defaultComponent(def: ColumnDef): string {
     case 'BOOLEAN': return 'SWITCH'
     case 'TEXT': case 'JSON': return 'TEXTAREA'
     case 'PASSWORD': return 'PASSWORD'
-    case 'DOMAIN': case 'ENTITY': return 'POPUP'
+    case 'DOMAIN': case 'ENTITY': case 'HANDLER_BEAN': return 'POPUP'
     case 'DATE': return 'DATE_PICKER'
     case 'DATETIME': return 'DATETIME_PICKER'
     default: return 'INPUT'

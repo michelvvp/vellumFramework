@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,6 +38,15 @@ public class HandlerRegistry {
             throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
                     "handler '" + nome + "' não registrado no backend");
         }
+    }
+
+    /** Nomes dos beans Spring que implementam Handler, ordenados. */
+    public List<String> nomesDeBeans() {
+        return spring.getBeansOfType(Handler.class).keySet().stream().sorted().toList();
+    }
+
+    public boolean existeBean(String nome) {
+        return nome != null && spring.getBeansOfType(Handler.class).containsKey(nome);
     }
 
     /** Dispara os HOOKs da tabela para o momento (BEFORE_CREATE, AFTER_DELETE...). */
