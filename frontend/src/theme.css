@@ -206,8 +206,13 @@
 .table th.col-acoes { z-index: 3; }
 /* O brilho de 1px do topo do card (box-shadow inset do DS) é pintado por baixo
    dos filhos: o th opaco o cobria. Repete o brilho no th e o separador começa
-   1px abaixo, para não cortar a linha. */
-.table th.col-acoes { box-shadow: inset 0 1px 0 var(--glass-sheen); }
+   1px abaixo, para não cortar a linha. O th é retangular e o overflow: hidden
+   do card cortava a linha reta na curva; com o raio interno do card (26px menos
+   a borda de 1px) o inset segue a curva e afina como no canto esquerdo. */
+.table th.col-acoes {
+  box-shadow: inset 0 1px 0 var(--glass-sheen);
+  border-top-right-radius: calc(var(--radius-lg) - 1px);
+}
 .table th.col-acoes::before { top: 1px; }
 .table tbody tr:hover .col-acoes {
   background: linear-gradient(var(--glass-fill), var(--glass-fill)), var(--surface);
